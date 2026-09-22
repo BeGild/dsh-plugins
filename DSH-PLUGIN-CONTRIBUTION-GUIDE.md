@@ -339,7 +339,7 @@ node-semver 只有当范围里**某个**比较符与该版本的 `major.minor.pa
 | 核心包版本 | `0.1.2-rc.1`（dsh-base / dsh-tools / dsh-settings / dsh-app-boot 均为此版本） |
 | cordis | `4.0.2` |
 | npm latest | `0.1.5-rc.2`；alpha `0.1.6-alpha.2` |
-| DSH_HOME | `C:\Users\ekko.bao\.dsh` |
+| DSH_HOME | `%USERPROFILE%\.dsh` |
 | web profile | `$DSH_HOME\profiles\web`，已装 20 个 bundle（含 dshmarket / dsh-orchestrator / dsh-free-search …） |
 | `dsh` 启动器 | `C:\Users\BYC10\AppData\Roaming\npm\dsh.cmd` |
 
