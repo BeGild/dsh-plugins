@@ -1,0 +1,29 @@
+name: ci
+
+on:
+  push:
+    branches: [main]
+  pull_request:
+
+jobs:
+  contract:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-node@v4
+        with:
+          node-version: '20'
+
+      - name: Plugin inventory
+        run: node scripts/list.mjs
+
+      # The gate: every hard rule from AGENTS.md, checked mechanically.
+      # This is what most third-party plugins get rejected for.
+      - name: Contract gate
+        run: node scripts/validate.mjs
+
+      # Tests run against real Node with no install step: the plugins are
+      # dependency-free at runtime (official @deepseek-ai/* packages are peers).
+      - name: Tests
+        run: node scripts/test-all.mjs

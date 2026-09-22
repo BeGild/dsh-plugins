@@ -1,0 +1,28 @@
+# dsh-node-repl — a persistent JavaScript REPL for DeepSeek Harness
+#
+# Registers one tool, `node_repl`, which evaluates JavaScript in a long-lived
+# child process. Top-level `var` / `function` / `let` / `const` bindings persist
+# between calls, so a multi-step computation keeps its state instead of
+# re-deriving it every turn.
+#
+# Every field below is optional; the plugin's Schemastery defaults apply when a
+# key is omitted. NOTE that a DSH patch entry replaces the target row's `config`
+# wholesale (it is NOT a deep merge), so if you set any key here, restate the
+# others you care about.
+#
+#   defaultTimeoutMs  number  budget applied when a call omits `timeout_ms` (default 30000).
+#   maxTimeoutMs      number  upper bound a call may request (default 120000).
+#   maxOutputChars    number  cap on returned value + captured logs (default 20000).
+#   cwd               string  working directory of the REPL process. Empty (default)
+#                             = the harness process cwd. Also the base for `require`.
+#
+# Example:
+#   - insert:
+#       - id: dsh-node-repl
+#         name: dsh-node-repl
+#         config:
+#           defaultTimeoutMs: 60000
+#           maxTimeoutMs: 300000
+- insert:
+    - id: dsh-node-repl
+      name: dsh-node-repl

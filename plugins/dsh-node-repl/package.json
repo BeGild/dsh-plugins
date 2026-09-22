@@ -1,0 +1,61 @@
+{
+  "name": "dsh-node-repl",
+  "version": "0.1.0",
+  "description": "A persistent Node.js REPL for DeepSeek Harness: evaluate JavaScript across calls with top-level bindings that survive, in a separate child process that a runaway loop cannot take down.",
+  "type": "module",
+  "main": "lib/index.js",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/OWNER/dsh-plugins.git",
+    "directory": "plugins/dsh-node-repl"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "node-repl",
+    "javascript",
+    "repl",
+    "eval",
+    "compute"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-tools": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-tools": "0.1.2-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "engines": {
+      "dsh": ">=0.1.1-rc.1"
+    }
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "test",
+    "cordis.patch.yml",
+    "README.md"
+  ],
+  "scripts": {
+    "test": "node test/repl.test.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

@@ -1,0 +1,25 @@
+# Dependencies and build output
+node_modules/
+.pnpm-store/
+dist/
+*.tsbuildinfo
+
+# Package artifacts — tarballs are build output, never committed
+*.tgz
+*.tar.gz
+
+# Local dev scratch
+scratch/
+dev/
+*.local.yml
+*.local.yaml
+.env
+.env.local
+
+# Logs and OS noise
+*.log
+npm-debug.log*
+pnpm-debug.log*
+.DS_Store
+Thumbs.db
+desktop.ini

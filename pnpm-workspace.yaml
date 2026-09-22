@@ -1,0 +1,5 @@
+# One workspace package per plugin, under plugins/.
+# This is the directory the awesome-dsh-plugin listing CI recognises for
+# monorepo sub-packages (packages/ | plugins/ | apps/ | the root package).
+packages:
+  - 'plugins/*'

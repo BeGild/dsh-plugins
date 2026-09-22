@@ -1,0 +1,29 @@
+# dsh-apply-patch — structured multi-file patching for DeepSeek Harness
+#
+# Registers one tool, `apply_patch`, which parses a Codex/ZCode-style
+# structured patch and applies every file change in it as a single unit:
+# the whole patch is parsed and planned first, so if any hunk fails to match,
+# no file is written at all.
+#
+# Every field below is optional; the plugin's Schemastery defaults apply when a
+# key is omitted. NOTE that a DSH patch entry replaces the target row's `config`
+# wholesale (it is NOT a deep merge), so if you set any key here, restate the
+# others you care about.
+#
+#   rootDir           string   root that relative patch paths resolve against.
+#                              Empty (default) = the harness process cwd.
+#   allowOutsideRoot  boolean  permit paths outside rootDir (default false).
+#   maxFilesPerPatch  number   refuse patches touching more file sections (default 50).
+#   maxPatchChars     number   refuse patch text longer than this (default 400000).
+#   createParentDirs  boolean  mkdir -p for added files (default true).
+#
+# Example:
+#   - insert:
+#       - id: dsh-apply-patch
+#         name: dsh-apply-patch
+#         config:
+#           rootDir: '/srv/project'
+#           allowOutsideRoot: false
+- insert:
+    - id: dsh-apply-patch
+      name: dsh-apply-patch

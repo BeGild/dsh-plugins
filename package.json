@@ -1,0 +1,16 @@
+{
+  "name": "dsh-plugins",
+  "version": "0.0.0",
+  "private": true,
+  "description": "My own DeepSeek Harness plugin monorepo: one package per plugin, contract-validated in CI.",
+  "type": "module",
+  "license": "MIT",
+  "engines": {
+    "node": ">=20"
+  },
+  "scripts": {
+    "validate": "node scripts/validate.mjs",
+    "test": "node scripts/test-all.mjs",
+    "list": "node scripts/list.mjs"
+  }
+}
