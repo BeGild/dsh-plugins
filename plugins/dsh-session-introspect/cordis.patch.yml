@@ -1,0 +1,27 @@
+# dsh-session-introspect — model-callable introspection of live DSH sessions
+#
+# Registers one tool, `session_introspect`, which reports facts about sessions
+# live in this harness process: the calling session itself, every sibling
+# session, bounded windows of one session's event log, the model-visible
+# surface, and fork lineage. It is strictly read-only — it appends no events.
+#
+# Every field below is optional; the plugin's Schemastery defaults apply when a
+# key is omitted. NOTE that a DSH patch entry replaces the target row's `config`
+# wholesale (it is NOT a deep merge), so if you set any key here, restate the
+# others you care about.
+#
+#   maxEvents      number   upper bound on events one `events` call may return (default 50).
+#   maxSessions    number   upper bound on sessions one `list` call may return (default 50).
+#   maxTextChars   number   per-event text preview bound, in characters (default 300).
+#   includeChunks  boolean  include token-level `assistant/chunk` events (default false).
+#
+# Example:
+#   - insert:
+#       - id: dsh-session-introspect
+#         name: dsh-session-introspect
+#         config:
+#           maxEvents: 100
+#           maxTextChars: 600
+- insert:
+    - id: dsh-session-introspect
+      name: dsh-session-introspect
