@@ -1,4 +1,4 @@
-# dsh-node-repl — a persistent JavaScript REPL for DeepSeek Harness
+# dsh-persistent-repl — a persistent JavaScript REPL for DeepSeek Harness
 #
 # Registers one tool, `node_repl`, which evaluates JavaScript in a long-lived
 # child process. Top-level `var` / `function` / `let` / `const` bindings persist
@@ -18,11 +18,11 @@
 #
 # Example:
 #   - insert:
-#       - id: dsh-node-repl
-#         name: dsh-node-repl
+#       - id: dsh-persistent-repl
+#         name: dsh-persistent-repl
 #         config:
 #           defaultTimeoutMs: 60000
 #           maxTimeoutMs: 300000
 - insert:
-    - id: dsh-node-repl
-      name: dsh-node-repl
+    - id: dsh-persistent-repl
+      name: dsh-persistent-repl

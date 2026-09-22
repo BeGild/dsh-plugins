@@ -1,6 +1,6 @@
 'use strict'
 /**
- * dsh-node-repl host — a persistent JavaScript evaluation server.
+ * dsh-persistent-repl host — a persistent JavaScript evaluation server.
  *
  * Runs as a SEPARATE child process (see lib/repl.js), which is deliberate:
  * a runaway loop, an OOM or a `process.exit()` inside evaluated code kills only

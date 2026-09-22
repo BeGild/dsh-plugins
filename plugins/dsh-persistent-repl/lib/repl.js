@@ -1,5 +1,5 @@
 /**
- * dsh-node-repl host manager — owns the persistent evaluation child process.
+ * dsh-persistent-repl host manager — owns the persistent evaluation child process.
  *
  * Responsibilities:
  *  - spawn / lazily restart the host (lib/repl-host.cjs) as a separate process;

@@ -9,8 +9,8 @@
 
 ```
 plugins/
-  dsh-apply-patch/    apply_patch — 结构化多文件补丁，一次调用原子应用
-  dsh-node-repl/      node_repl   — 持久化 Node.js REPL，跨调用保留顶层绑定
+  dsh-apply-patch/      apply_patch  — 结构化多文件补丁，一次调用原子应用
+  dsh-persistent-repl/  node_repl    — 持久化 Node.js REPL，跨调用保留顶层绑定
 scripts/
   validate.mjs        契约门禁（R1–R10）
   test-all.mjs        跑所有插件的测试
@@ -119,7 +119,7 @@ npm publish            # 或 pnpm pack 出 tarball
 插件代码**不受** DSH 的三档文件权限约束——那三档只审查模型发起的工具请求。
 插件在用户机器上以该用户账号的全部权限运行。所以：
 
-- `dsh-node-repl` 会执行任意 JavaScript（与内置 shell 工具同级信任）；
+- `dsh-persistent-repl` 会执行任意 JavaScript（与内置 shell 工具同级信任）；
 - `dsh-apply-patch` 直接读写文件，不受文件沙箱限制，靠 `rootDir` / `allowOutsideRoot` 约束。
 
 两个插件的 README 都写明了这一点，且都不自行联网、不读取凭据。

@@ -1,5 +1,5 @@
 /**
- * dsh-node-repl tests — run with: node test/repl.test.mjs
+ * dsh-persistent-repl tests — run with: node test/repl.test.mjs
  *
  * These spawn REAL child processes (that is the feature under test), so the run
  * takes a few seconds. Every check is bounded by an explicit timeout.
@@ -23,12 +23,12 @@ async function test(label, fn) {
   }
 }
 
-console.log('dsh-node-repl tests\n')
+console.log('dsh-persistent-repl tests\n')
 
 // ---------------------------------------------------------------- module shape
 
 await test('exports the cordis plugin surface', () => {
-  assert.equal(name, 'dsh-node-repl')
+  assert.equal(name, 'dsh-persistent-repl')
   assert.deepEqual(inject, ['tools'])
   assert.equal(typeof apply, 'function')
   assert.equal(typeof Config, 'function', 'Config must be a Schemastery schema')

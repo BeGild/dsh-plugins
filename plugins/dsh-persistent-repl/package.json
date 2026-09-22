@@ -1,5 +1,5 @@
 {
-  "name": "dsh-node-repl",
+  "name": "dsh-persistent-repl",
   "version": "0.1.0",
   "description": "A persistent Node.js REPL for DeepSeek Harness: evaluate JavaScript across calls with top-level bindings that survive, in a separate child process that a runaway loop cannot take down.",
   "type": "module",
@@ -8,7 +8,7 @@
   "repository": {
     "type": "git",
     "url": "https://github.com/BeGild/dsh-plugins.git",
-    "directory": "plugins/dsh-node-repl"
+    "directory": "plugins/dsh-persistent-repl"
   },
   "engines": {
     "node": ">=20"

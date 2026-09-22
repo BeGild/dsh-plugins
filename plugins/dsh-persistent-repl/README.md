@@ -1,4 +1,4 @@
-# dsh-node-repl
+# dsh-persistent-repl
 
 A **persistent Node.js REPL** for DeepSeek Harness.
 
@@ -66,8 +66,8 @@ returned alongside the result rather than leaking to the harness's own stdout.
 ## Install
 
 ```sh
-dsh plugin --profile web add dsh-node-repl             # npm
-dsh plugin --profile web add ./dsh-node-repl-0.1.0.tgz # tarball
+dsh plugin --profile web add dsh-persistent-repl             # npm
+dsh plugin --profile web add ./dsh-persistent-repl-0.1.0.tgz # tarball
 ```
 
 ## Verification

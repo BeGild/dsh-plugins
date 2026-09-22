@@ -1,5 +1,5 @@
 /**
- * dsh-node-repl — a persistent JavaScript REPL for DeepSeek Harness.
+ * dsh-persistent-repl — a persistent JavaScript REPL for DeepSeek Harness.
  *
  * Registers `node_repl`: evaluate JavaScript in a long-lived child process whose
  * top-level bindings survive between calls, so a multi-step computation keeps its
@@ -13,7 +13,7 @@ import Schema from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import { NodeReplError, NodeReplHost } from './repl.js'
 
-export const name = 'dsh-node-repl'
+export const name = 'dsh-persistent-repl'
 export const inject = ['tools']
 
 /**

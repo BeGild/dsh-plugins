@@ -20,7 +20,7 @@ importers:
         specifier: ^3.18.1
         version: 3.18.2
 
-  plugins/dsh-node-repl:
+  plugins/dsh-persistent-repl:
     devDependencies:
       '@deepseek-ai/cordis':
         specifier: ^4.0.1

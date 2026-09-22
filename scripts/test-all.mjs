@@ -3,7 +3,7 @@
  * test-all.mjs — run every plugin's test files and summarise.
  *
  *   node scripts/test-all.mjs            # all plugins
- *   node scripts/test-all.mjs dsh-node-repl
+ *   node scripts/test-all.mjs dsh-persistent-repl
  *
  * Child output is inherited rather than captured, so a failing suite streams its
  * diagnostics straight to the CI log.
