@@ -1,8 +1,10 @@
 # dsh-plugins
 
+[![ci](https://github.com/BeGild/dsh-plugins/actions/workflows/ci.yml/badge.svg)](https://github.com/BeGild/dsh-plugins/actions/workflows/ci.yml)
+
 我自己的 **DeepSeek Harness 插件 monorepo**。一个插件一个包，全部在 CI 里过契约门禁。
 
-配套仓库 **[dsh-kit](https://github.com/BeGild/dsh-kit)** 负责把这些插件和外部插件、
+配套仓库 **[EkkoBuddy](https://github.com/BeGild/EkkoBuddy)** 负责把这些插件和外部插件、
 以及我的配置汇总成一台可复现的 DSH 安装。
 
 ```
@@ -97,7 +99,7 @@ mkdir -p plugins/dsh-my-thing/lib plugins/dsh-my-thing/test
 **不需要任何 junction / 软链技巧**。
 
 真实安装时（用户机器上）peer 由 profile 的 `nodeLinker: hoisted` 提供，
-见 dsh-kit 的说明。同一份代码在两种环境下都能解析，只是来源不同。
+见 EkkoBuddy 的说明。同一份代码在两种环境下都能解析，只是来源不同。
 
 ## 发布
 
@@ -106,7 +108,7 @@ cd plugins/dsh-my-thing
 npm publish            # 或 pnpm pack 出 tarball
 ```
 
-发到 npm 之后，去 dsh-kit 把对应条目的 `enabled` 改成 `true`。
+发到 npm 之后，去 EkkoBuddy 把对应条目的 `enabled` 改成 `true`。
 
 想进社区精选清单（<https://awesome-dsh-plugin.com>）：给仓库加 `dsh-plugin` topic，
 然后向 `awesome-dsh-plugin/awesome-dsh-plugin` 提一个只加
