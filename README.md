@@ -2,7 +2,7 @@
 
 我自己的 **DeepSeek Harness 插件 monorepo**。一个插件一个包，全部在 CI 里过契约门禁。
 
-配套仓库 **[dsh-kit](https://github.com/OWNER/dsh-kit)** 负责把这些插件和外部插件、
+配套仓库 **[dsh-kit](https://github.com/BeGild/dsh-kit)** 负责把这些插件和外部插件、
 以及我的配置汇总成一台可复现的 DSH 安装。
 
 ```
@@ -60,7 +60,7 @@ mkdir -p plugins/dsh-my-thing/lib plugins/dsh-my-thing/test
   "type": "module",
   "main": "lib/index.js",
   "license": "MIT",
-  "repository": { "type": "git", "url": "https://github.com/OWNER/dsh-plugins.git", "directory": "plugins/dsh-my-thing" },
+  "repository": { "type": "git", "url": "https://github.com/BeGild/dsh-plugins.git", "directory": "plugins/dsh-my-thing" },
   "engines": { "node": ">=20" },
   "keywords": ["deepseek-harness", "dsh", "dsh-plugin"],
   "peerDependencies": {
@@ -109,7 +109,7 @@ npm publish            # 或 pnpm pack 出 tarball
 
 想进社区精选清单（<https://awesome-dsh-plugin.com>）：给仓库加 `dsh-plugin` topic，
 然后向 `awesome-dsh-plugin/awesome-dsh-plugin` 提一个只加
-`data/plugins/OWNER__dsh-plugins--plugins-dsh-my-thing.yml` 的 PR（monorepo 子包命名法）。
+`data/plugins/BeGild__dsh-plugins--plugins-dsh-my-thing.yml` 的 PR（monorepo 子包命名法）。
 
 ## 安全
 
