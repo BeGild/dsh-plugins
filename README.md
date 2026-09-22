@@ -18,13 +18,18 @@ scripts/
 ## 用法
 
 ```sh
+pnpm install                  # 装 devDependencies（测试需要官方 peer 包，见下）
 node scripts/list.mjs         # 有什么
 node scripts/validate.mjs     # 契约门禁（非 0 退出 = 有问题）
 node scripts/test-all.mjs     # 跑测试
 ```
 
-三者都不需要 `pnpm install`：插件的运行时依赖只有官方 `@deepseek-ai/*` 包，
-它们声明为 `peerDependencies`，由宿主提供。
+`pnpm install` 是**必需**的：插件的运行时依赖只有官方 `@deepseek-ai/*` 包，
+它们声明为 `peerDependencies`（由宿主提供），同时在 `devDependencies` 里镜像一份
+——这正是 AGENTS.md §3.2 推荐的写法，也是让 load/integration 测试能在没有宿主的
+机器上跑起来的原因。少了它，测试会以
+`ERR_MODULE_NOT_FOUND: Cannot find package '@deepseek-ai/schemastery'` 失败
+（CI 第一次跑就是这么挂的）。
 
 ## 契约门禁检查什么
 
@@ -86,17 +91,13 @@ mkdir -p plugins/dsh-my-thing/lib plugins/dsh-my-thing/test
 
 ## 本地开发时 peer 怎么解析
 
-插件源码在 `plugins/<name>/lib/` 里 `import '@deepseek-ai/dsh-tools'`，
-但 `E:\work\dsh\node_modules` 下没有这些包。本机用一个 junction 指到 DSH 的
-hoisted 存储，让测试能在不启动宿主的情况下跑：
+插件源码在 `plugins/<name>/lib/` 里 `import '@deepseek-ai/dsh-tools'`。
+在仓库根跑一次 `pnpm install`，pnpm 会把每个插件的 `devDependencies`
+装进 `plugins/<name>/node_modules/`，测试即可直接解析到这些官方包——
+**不需要任何 junction / 软链技巧**。
 
-```powershell
-New-Item -ItemType Junction -Path "E:\work\dsh\node_modules\@deepseek-ai" `
-  -Target "$env:USERPROFILE\.dsh\profiles\node_modules\@deepseek-ai"
-```
-
-这只是**开发机脚手架**，不随包发布。真实安装时 peer 由 profile 的
-`nodeLinker: hoisted` 提供（见 dsh-kit 的说明）。
+真实安装时（用户机器上）peer 由 profile 的 `nodeLinker: hoisted` 提供，
+见 dsh-kit 的说明。同一份代码在两种环境下都能解析，只是来源不同。
 
 ## 发布
 

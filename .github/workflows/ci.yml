@@ -11,9 +11,21 @@ jobs:
     steps:
       - uses: actions/checkout@v4
 
+      - uses: pnpm/action-setup@v4
+        with:
+          version: 10
+
       - uses: actions/setup-node@v4
         with:
           node-version: '20'
+          cache: pnpm
+
+      # Required, not optional: the plugins import the official @deepseek-ai/*
+      # packages, which are peerDependencies (supplied by the host at runtime)
+      # and mirrored in devDependencies for exactly this purpose. Without an
+      # install, the load/integration tests fail with ERR_MODULE_NOT_FOUND.
+      - name: Install dev dependencies
+        run: pnpm install --frozen-lockfile
 
       - name: Plugin inventory
         run: node scripts/list.mjs
@@ -23,7 +35,5 @@ jobs:
       - name: Contract gate
         run: node scripts/validate.mjs
 
-      # Tests run against real Node with no install step: the plugins are
-      # dependency-free at runtime (official @deepseek-ai/* packages are peers).
       - name: Tests
         run: node scripts/test-all.mjs
