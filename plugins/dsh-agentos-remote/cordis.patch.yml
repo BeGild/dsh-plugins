@@ -1,0 +1,24 @@
+# dsh-agentos-remote bundle patch
+#
+# Mounted exactly like dsh-sidebar-qa: the dsh.bundle.patch layer adds one
+# Cordis plugin row to the profile stack. The service injects `webServer` — the
+# QR login page rides the Web surface the user already reaches — so the profile
+# must carry `dsh web` (or any bundle providing webServer). Agent services are
+# NOT injected: `ctx.agents` is read when a task actually arrives, so a host
+# without them still boots.
+#
+# Config (plain defaults merged by the plugin — all optional, no schema):
+#   enabled        start the remote-control link on boot (default true)
+#   endpoint       AgentOS API base (default https://tencent.sso.codebuddy.cn)
+#   agentType      localAgentType sent to AgentOS (default "cli")
+#   sessionFile    WorkBuddy session .info path override
+#   workspaceDir   the DSH workspace exposed to the mobile app (default cwd)
+#   deviceName     device name shown in the mobile app (default "{hostname}-DSH")
+#   provider       model route for app-driven sessions (default: host default)
+#   model          model id for app-driven sessions (default: host default)
+#   debug          publish a task-start event back to the app (default false)
+- insert:
+    - id: agentos-remote
+      name: 'dsh-agentos-remote'
+      config:
+        enabled: !!js "process.env.DSH_AGENTOS_REMOTE_ENABLED !== 'false'"

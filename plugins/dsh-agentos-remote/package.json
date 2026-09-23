@@ -1,0 +1,67 @@
+{
+  "name": "dsh-agentos-remote",
+  "version": "1.1.0",
+  "description": "WorkBuddy mobile-app remote control for DSH: implements WorkBuddy's AgentOS local-agent protocol (registerWorkspace + Centrifugo downlink + HTTP COPILOT_RESPONSE uplink) with built-in WeChat-QR login — no WorkBuddy desktop required on the DSH host.",
+  "type": "module",
+  "main": "lib/index.js",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BeGild/dsh-plugins.git",
+    "directory": "plugins/dsh-agentos-remote"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "workbuddy",
+    "agentos",
+    "remote-control",
+    "centrifugo"
+  ],
+  "dependencies": {
+    "centrifuge": "5.5.3",
+    "qrcode": "^1.5.4",
+    "ws": "^8.18.0"
+  },
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "engines": {
+      "dsh": ">=0.1.1-rc.1"
+    }
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "login.js",
+    "test",
+    "cordis.patch.yml",
+    "README.md",
+    "INSTALL.md",
+    "LICENSE"
+  ],
+  "bin": {
+    "dsh-agentos-remote-login": "./login.js"
+  },
+  "scripts": {
+    "test": "node test/load.test.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}

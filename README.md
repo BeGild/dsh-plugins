@@ -9,8 +9,9 @@
 
 ```
 plugins/
-  dsh-apply-patch/      apply_patch  — 结构化多文件补丁，一次调用原子应用
-  dsh-persistent-repl/  node_repl    — 持久化 Node.js REPL，跨调用保留顶层绑定
+  dsh-apply-patch/      apply_patch     — 结构化多文件补丁，一次调用原子应用
+  dsh-persistent-repl/  node_repl       — 持久化 Node.js REPL，跨调用保留顶层绑定
+  dsh-agentos-remote/   agentos-remote  — WorkBuddy 手机 App 远控（AgentOS 协议 + 微信扫码登录）
 scripts/
   validate.mjs        契约门禁（R1–R10）
   test-all.mjs        跑所有插件的测试
@@ -120,6 +121,7 @@ npm publish            # 或 pnpm pack 出 tarball
 插件在用户机器上以该用户账号的全部权限运行。所以：
 
 - `dsh-persistent-repl` 会执行任意 JavaScript（与内置 shell 工具同级信任）；
-- `dsh-apply-patch` 直接读写文件，不受文件沙箱限制，靠 `rootDir` / `allowOutsideRoot` 约束。
+- `dsh-apply-patch` 直接读写文件，不受文件沙箱限制，靠 `rootDir` / `allowOutsideRoot` 约束；
+- `dsh-agentos-remote` 持有你的 WorkBuddy 账号凭据、调用腾讯 AgentOS 私有接口，并常驻一条通往腾讯云的 WebSocket——**它是本仓库唯一自行联网、唯一读取凭据的插件**。
 
-两个插件的 README 都写明了这一点，且都不自行联网、不读取凭据。
+三个插件的 README 都写明了各自这一点。前两个不自行联网、不读取凭据；`dsh-agentos-remote` 的联网与凭据行为在它 README 的「安全提示」里逐条列出。

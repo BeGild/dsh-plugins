@@ -3,3 +3,9 @@
 # monorepo sub-packages (packages/ | plugins/ | apps/ | the root package).
 packages:
   - 'plugins/*'
+
+# pnpm >= 10 refuses dependency build scripts unless they are allowed, and the
+# refusal is fatal (ERR_PNPM_IGNORED_BUILDS). protobufjs arrives through
+# dsh-agentos-remote's centrifuge dependency, so a CI install needs this.
+allowBuilds:
+  protobufjs: true
