@@ -9,9 +9,10 @@
 
 ```
 plugins/
-  dsh-apply-patch/      apply_patch     — 结构化多文件补丁，一次调用原子应用
-  dsh-persistent-repl/  node_repl       — 持久化 Node.js REPL，跨调用保留顶层绑定
-  dsh-agentos-remote/   agentos-remote  — WorkBuddy 手机 App 远控（AgentOS 协议 + 微信扫码登录）
+  dsh-apply-patch/        apply_patch        — 结构化多文件补丁，一次调用原子应用
+  dsh-persistent-repl/    node_repl          — 持久化 Node.js REPL，跨调用保留顶层绑定
+  dsh-session-introspect/ session_introspect — 实时会话自省（自身事实、兄弟会话、事件窗口、fork 谱系）
+  dsh-agentos-remote/     agentos-remote     — WorkBuddy 手机 App 远控（AgentOS 协议 + 微信扫码登录）
 scripts/
   validate.mjs        契约门禁（R1–R10）
   test-all.mjs        跑所有插件的测试
