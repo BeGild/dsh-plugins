@@ -1,0 +1,18 @@
+# dsh-zcode-theme bundle patch.
+#
+# One row. The host half (lib/index.js) is a no-op; the browser half
+# (lib/client.js, declared by dsh.client) is picked up from the same row and
+# overrides the Web UI's --dsw-* tokens with ZCode's zai palette and type scale.
+#
+# Config, all optional:
+#   fonts    retune the type ladder to ZCode's text-ui-* scale (default true)
+#   palette  repaint surfaces with the zai light/dark colours (default true)
+#   accent   also recolour DSH's business blue with ZCode's #0b7fff / #4099ff
+#            (default false — that blue is an accent, not the surface palette)
+- insert:
+    - id: zcode-theme
+      name: dsh-zcode-theme
+      config:
+        fonts: true
+        palette: true
+        accent: false

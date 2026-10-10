@@ -1,0 +1,59 @@
+{
+  "name": "dsh-zcode-theme",
+  "version": "0.1.0",
+  "description": "Repaints the DSH Web UI with ZCode's zai dark/light palette and its text-ui type scale, so chrome text matches conversation text instead of sitting 2px below it.",
+  "type": "module",
+  "main": "lib/index.js",
+  "license": "MIT",
+  "repository": {
+    "type": "git",
+    "url": "https://github.com/BeGild/dsh-plugins.git",
+    "directory": "plugins/dsh-zcode-theme"
+  },
+  "engines": {
+    "node": ">=20"
+  },
+  "keywords": [
+    "deepseek-harness",
+    "dsh",
+    "dsh-plugin",
+    "client-plugin",
+    "theme"
+  ],
+  "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "dsh": {
+    "bundle": {
+      "patch": "./cordis.patch.yml"
+    },
+    "client": {
+      "platform": "web",
+      "inject": ["@deepseek-ai/dsh-client-ui-theme"]
+    },
+    "engines": {
+      "dsh": ">=0.1.1-rc.1"
+    }
+  },
+  "exports": {
+    ".": "./lib/index.js",
+    "./client": "./lib/client.js",
+    "./palette": "./lib/palette.js",
+    "./scale": "./lib/scale.js",
+    "./cordis.patch.yml": "./cordis.patch.yml",
+    "./package.json": "./package.json"
+  },
+  "files": [
+    "lib",
+    "test",
+    "cordis.patch.yml",
+    "README.md",
+    "LICENSE"
+  ],
+  "scripts": {
+    "test": "node test/palette.test.mjs && node test/scale.test.mjs && node test/client.test.mjs"
+  },
+  "publishConfig": {
+    "access": "public"
+  }
+}
