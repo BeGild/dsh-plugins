@@ -60,6 +60,12 @@ importers:
         specifier: ^3.18.1
         version: 3.18.2
 
+  plugins/dsh-zcode-theme:
+    devDependencies:
+      '@deepseek-ai/cordis':
+        specifier: ^4.0.1
+        version: 4.0.2
+
 packages:
 
   '@deepseek-ai/cordis@4.0.2':

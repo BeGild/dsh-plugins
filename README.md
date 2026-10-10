@@ -13,6 +13,7 @@ plugins/
   dsh-persistent-repl/    node_repl          — 持久化 Node.js REPL，跨调用保留顶层绑定
   dsh-session-introspect/ session_introspect — 实时会话自省（自身事实、兄弟会话、事件窗口、fork 谱系）
   dsh-agentos-remote/     agentos-remote     — WorkBuddy 手机 App 远控（AgentOS 协议 + 微信扫码登录）
+  dsh-zcode-theme/        (no tool)          — Web UI 主题：ZCode 的 zai 配色与 text-ui 字阶
 scripts/
   validate.mjs        契约门禁（R1–R10）
   test-all.mjs        跑所有插件的测试
@@ -77,6 +78,11 @@ mkdir -p plugins/dsh-my-thing/lib plugins/dsh-my-thing/test
     "@deepseek-ai/dsh-tools": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0",
     "@deepseek-ai/schemastery": "^3.18.1"
   },
+  "devDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1",
+    "@deepseek-ai/dsh-tools": "0.1.2-rc.1",
+    "@deepseek-ai/schemastery": "^3.18.1"
+  },
   "dsh": { "bundle": { "patch": "./cordis.patch.yml" } },
   "exports": { ".": "./lib/index.js", "./cordis.patch.yml": "./cordis.patch.yml", "./package.json": "./package.json" },
   "files": ["lib", "test", "cordis.patch.yml", "README.md"],
@@ -123,6 +129,7 @@ npm publish            # 或 pnpm pack 出 tarball
 
 - `dsh-persistent-repl` 会执行任意 JavaScript（与内置 shell 工具同级信任）；
 - `dsh-apply-patch` 直接读写文件，不受文件沙箱限制，靠 `rootDir` / `allowOutsideRoot` 约束；
-- `dsh-agentos-remote` 持有你的 WorkBuddy 账号凭据、调用腾讯 AgentOS 私有接口，并常驻一条通往腾讯云的 WebSocket——**它是本仓库唯一自行联网、唯一读取凭据的插件**。
+- `dsh-agentos-remote` 持有你的 WorkBuddy 账号凭据、调用腾讯 AgentOS 私有接口，并常驻一条通往腾讯云的 WebSocket——**它是本仓库唯一自行联网、唯一读取凭据的插件**；
+- `dsh-zcode-theme` 是纯客户端插件：不注册 host 服务、不读文件、不联网，只通过主题服务写 CSS 变量，并改写页面里 `style` 元素中写死的字号。
 
-三个插件的 README 都写明了各自这一点。前两个不自行联网、不读取凭据；`dsh-agentos-remote` 的联网与凭据行为在它 README 的「安全提示」里逐条列出。
+五个插件的 README 都写明了各自这一点。前三个不自行联网、不读取凭据；`dsh-agentos-remote` 的联网与凭据行为在它 README 的「安全提示」里逐条列出。

@@ -1,7 +1,7 @@
 {
   "name": "dsh-zcode-theme",
   "version": "0.1.0",
-  "description": "Repaints the DSH Web UI with ZCode's zai dark/light palette and its text-ui type scale, so chrome text matches conversation text instead of sitting 2px below it.",
+  "description": "Repaints the DSH Web UI with ZCode's zai dark/light palette and moves its type ladder onto ZCode's text-ui steps: markdown headings drop from 21/19/18px to 18/16/14px, and the chrome's hard-coded font sizes start following the content-font setting.",
   "type": "module",
   "main": "lib/index.js",
   "license": "MIT",
@@ -21,6 +21,9 @@
     "theme"
   ],
   "peerDependencies": {
+    "@deepseek-ai/cordis": "^4.0.1"
+  },
+  "devDependencies": {
     "@deepseek-ai/cordis": "^4.0.1"
   },
   "dsh": {
