@@ -4,15 +4,36 @@
 
 ## 方式一:从 tarball 安装(离线/内网,最直接)
 
-`dsh-agentos-remote-1.1.0.tgz` 随本包分发。在目标机器上:
+`dsh-agentos-remote-1.2.0.tgz` 随本包分发。在目标机器上:
 
 ```powershell
-dsh plugin --profile <你的profile名> add E:\path\to\dsh-agentos-remote-1.1.0.tgz
+dsh plugin --profile <你的profile名> add E:\path\to\dsh-agentos-remote-1.2.0.tgz
 ```
 
 DSH 会通过 pnpm 安装 tarball、校验 dsh manifest、把 `agentos-remote` 追加进 `dsh.profile.bundles`,重启 DSH 即生效。
 
-> tarball 也可手动安装:把 `dependencies` 里加 `"dsh-agentos-remote": "file:E:/path/to/dsh-agentos-remote-1.1.0.tgz"`,再在 `dsh.profile.bundles` 数组加 `"dsh-agentos-remote"`,然后 `pnpm install`。
+> tarball 也可手动安装:把 `dependencies` 里加 `"dsh-agentos-remote": "file:E:/path/to/dsh-agentos-remote-1.2.0.tgz"`,再在 `dsh.profile.bundles` 数组加 `"dsh-agentos-remote"`,然后 `pnpm install`。
+
+### ⚠️ 全新 profile 上必做的一步:放行 protobufjs 的构建脚本
+
+`centrifuge` 依赖 `protobufjs`,而 pnpm ≥10 **默认拒绝执行依赖的构建脚本**,且拒绝是致命的:
+
+```
+Error: ERR_PNPM_IGNORED_BUILDS
+  × adding a new package
+  ╰─▶ Ignored build scripts: protobufjs@7.6.6
+```
+
+装之前先在该 profile 的 `pnpm-workspace.yaml`(`$DSH_HOME/profiles/<名字>/pnpm-workspace.yaml`)里放行:
+
+```yaml
+allowBuilds:
+  protobufjs: true      # 显式 true 或 false 都可以;关键是别留空、别留模板占位串
+```
+
+从 web 模板新建的 profile 里这一项是占位串 `protobufjs: set this to true or false`,**原样保留就会报上面这个错**。改完重新执行一次 `dsh plugin ... add` 即可(命令会失败在安装步骤,不会写坏 profile)。
+
+`protobufjs` 的 postinstall 只服务于它自己的 CLI,插件运行并不需要,所以写 `false` 同样能装成功——写 `true` 只是少一次"为什么是 false"的疑问。
 
 ## 方式二:从 git 仓库安装(团队分发)
 
@@ -38,16 +59,18 @@ dsh plugin --profile <profile> add dsh-agentos-remote
 
 ## 登录(微信扫码,目标机器无需 WorkBuddy)
 
-重启 DSH 后,浏览器打开(就是平时访问 DSH Web UI 的那个地址):
+重启 DSH 后,打开平时访问 DSH Web UI 的地址,**在左侧栏点手机图标,打开「WorkBuddy 远控」面板**:
+
+1. 面板自动生成二维码(侧栏图标右上角的黄色小点 = 尚未登录)
+2. 微信扫码 → 确认登录
+3. 面板显示"登录成功: <你的昵称>",状态变为「已登录 · 链路已连接」
+4. 完成 —— 插件自动用该账号注册 DSH 工作区到 AgentOS 云端,手机 App 里即可看到并下发任务
+
+面板打不开时(旧版宿主、纯 SSH、profile 无 `webServer`),同一份二维码也在独立页面上:
 
 ```
 http://<你的DSH地址>/agentos-remote/login
 ```
-
-1. 页面自动生成二维码
-2. 微信扫码 → 确认登录
-3. 页面显示"登录成功: <你的昵称>"
-4. 完成 —— 插件自动用该账号注册 DSH 工作区到 AgentOS 云端,手机 App 里即可看到并下发任务
 
 凭据保存在 DSH 机器的 `~/.workbuddy/.dsh-agentos-credentials.json`,refreshToken 自动轮换续期,**后续重启无需再扫码**。
 
@@ -58,19 +81,21 @@ http://<你的DSH地址>/agentos-remote/login
 重启 DSH 后,日志中应出现:
 
 ```
-[agentos-remote] login page: /agentos-remote/login
+[agentos-remote] login page: /agentos-remote/login (also a panel in the DSH web UI)
 [agentos-remote] session source: cached-login (uid=<uid>)     ← 扫码后
-[agentos-remote] registered workspace=<目录名> channel=copilot_cli:<uid>_<hostId>_<ws>
+[agentos-remote] registered workspace=<目录名> channel=copilot_workbuddy:<uid>_<hostId>_<ws>
 [agentos-remote] connected client=<uuid>
-[agentos-remote] subscribed: copilot_cli:<uid>_<hostId>_<ws>
+[agentos-remote] subscribed: copilot_workbuddy:<uid>_<hostId>_<ws>
 ```
 
 ## 常见问题
 
 | 现象 | 处理 |
 |---|---|
-| 日志 `no credentials — open /agentos-remote/login` | 正常:扫码前都这样;打开登录页扫码即可 |
-| 二维码过期 | 页面点「刷新二维码」(state 5 分钟有效) |
+| 装的时候 `ERR_PNPM_IGNORED_BUILDS: protobufjs@7.6.6` | 见上方「全新 profile 上必做的一步」:在 profile 的 `pnpm-workspace.yaml` 里写 `allowBuilds: { protobufjs: true }`,或跑 `pnpm approve-builds` |
+| 日志 `no credentials — open /agentos-remote/login` | 正常:扫码前都这样;点侧栏「WorkBuddy 远控」或打开登录页扫码即可 |
+| 侧栏看不到「WorkBuddy 远控」入口 | 确认宿主带 `@deepseek-ai/dsh-web-app`(标准 web profile 都有);`dsh --profile <名字> --dump-config` 里能看到 `dsh-agentos-remote` 这一层 |
+| 二维码过期 | 面板/页面点「刷新二维码」(state 5 分钟有效) |
 | 日志 `token refresh failed` | refreshToken 可能已失效(长期未运行)→ 重新扫码 |
 | 收到任务但 `reply failed ... 404 No channel mapping` | 正常现象:通道映射有约 2 秒传播延迟,插件会自动重试;若持续失败检查 endpoint 配置 |
 | 手机 App 里看不到工作区 | 确认手机 App 与扫码账号为同一账号;workspace 在注册后才会出现 |

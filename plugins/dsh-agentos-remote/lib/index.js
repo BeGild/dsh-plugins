@@ -19,7 +19,7 @@
  * The connectionToken TTL is 7 days (exp-iat = 604800s), so registration is
  * repeated on expiry — mirroring WorkBuddy's refreshCredentials.
  */
-import { randomUUID } from "node:crypto";
+import { createHash, randomUUID } from "node:crypto";
 import fs from "node:fs";
 import os from "node:os";
 import path from "node:path";
@@ -32,7 +32,15 @@ import { registerLoginUi } from "./login-ui.js";
 const DEFAULTS = {
   enabled: true,
   endpoint: "https://tencent.sso.codebuddy.cn",
-  agentType: "cli",
+  /**
+   * Must be "workbuddy" — the server derives the Centrifugo channel NAMESPACE
+   * from this value (`copilot_<localAgentType>:<uid>_<hostId>_<ws>`), and the
+   * mobile app only enumerates the namespace WorkBuddy Desktop registers into,
+   * which is `copilot_workbuddy`. Registering as "cli" succeeds (the response is
+   * well-formed) but lands the device in `copilot_cli`, where the app never
+   * looks — so it simply never appears in the device list.
+   */
+  agentType: "workbuddy",
   /** WorkBuddy desktop session file (plain-text JWT accessToken). */
   sessionFile: null,
   /** Directory exposed as a workspace to the mobile app. */
@@ -100,8 +108,14 @@ function readWorkbuddySession(logger, explicit) {
 //#region agentos client
 const CONNECTION_TOKEN_TTL_MS = 604800 * 1000; // 7d, observed exp-iat
 const REGISTER_RETRY_MS = 60 * 1000;
-/** Server-side link health is polled; action=RE_REGISTER_WORKSPACE means re-register now (verified live). */
-const LINK_CHECK_MS = 30 * 60 * 1000;
+/**
+ * Link health poll. This is also the device's HTTP heartbeat, and the server's
+ * "online" window is short — the mobile app flips a device to offline within
+ * about a minute of its client going away. At 30 minutes the poll was far too
+ * slow to ever hold that window open, which is indistinguishable from a device
+ * that never came up.
+ */
+const LINK_CHECK_MS = 20 * 1000;
 /** Inbound task dedupe window (WorkBuddy parity: messageExpireTime = 3e5). Centrifugo recovery can redeliver. */
 const DEDUPE_TTL_MS = 5 * 60 * 1000;
 /** Auth endpoints (verified live; prefixPath "/plugin" from WorkBuddy product.json authentication config). */
@@ -230,6 +244,11 @@ function saveCredentialCache(session, logger) {
 
 async function registerWorkspace(endpoint, agentType, hostId, session, workspaceDir, logger, deviceName) {
   const body = {
+    // WorkBuddy Desktop sends userId alongside hostId/workspaceId; the server
+    // accepts its absence but the app-side ownership of the device is keyed on
+    // it, so it is sent explicitly. JSON.stringify drops it when the session
+    // carries no uid rather than emitting `"userId": undefined`.
+    userId: session?.account?.uid,
     localAgentType: agentType,
     hostId,
     workspaceId: workspaceIdOf(workspaceDir),
@@ -373,6 +392,9 @@ var AgentosRemoteService = class extends Service {
     super(ctx, "agentosRemote");
     this.config = { ...DEFAULTS, ...(config || {}) };
     this.processed = new Map(); // requestId -> first-seen ts (dedupe, DEDUPE_TTL_MS)
+    this.subscribed = false; // channel subscription live (reported to the UI panel)
+    this.channel = null; // channel name from the last successful registration
+    this.lastError = null; // last link failure, surfaced to the panel for debugging
   }
 
   /** True when this requestId was already handled within the dedupe window. */
@@ -385,6 +407,53 @@ var AgentosRemoteService = class extends Service {
     return false;
   }
 
+  /**
+   * Link state, coarse enough to render and precise enough to act on:
+   * `waiting-login` (no credentials yet), `connecting` (registered, socket not
+   * up), `subscribed` (tasks can arrive), `stopped` (torn down).
+   */
+  linkState() {
+    if (this.stopped) return "stopped";
+    if (!this.session?.auth?.accessToken) return "waiting-login";
+    return this.subscribed ? "subscribed" : "connecting";
+  }
+
+  /**
+   * Snapshot for the in-UI panel (`GET /agentos-remote/login/api/status`).
+   *
+   * Non-secret facts only, and a deliberate ALLOW-LIST: this route sits on the
+   * same unauthenticated web surface as the login page, so no access token,
+   * refresh token or channel credential may ever appear in it, and adding a
+   * field is a decision rather than a detail. The uid/nickname pair is the same
+   * information the page already shows on a successful scan.
+   *
+   * `config.debug` adds a diagnostics block, because the device-list bug is
+   * otherwise invisible from outside: the channel NAMESPACE is what decides
+   * whether the mobile app can enumerate this device (`copilot_workbuddy` yes,
+   * `copilot_cli` no), and this plugin's `ctx.logger` output has no reachable
+   * sink. Even there only the namespace prefix is reported — the full channel
+   * encodes uid + hostId.
+   */
+  linkStatus() {
+    const session = this.session;
+    const status = {
+      loggedIn: !!session?.auth?.accessToken,
+      uid: session?.account?.uid ?? null,
+      nickname: session?.account?.nickname ?? null,
+      device: this.config.deviceName || defaultDeviceName(),
+      workspace: path.basename(this.workspaceDir || this.config.workspaceDir || process.cwd()),
+      endpoint: this.config.endpoint,
+      link: this.linkState(),
+    };
+    if (this.config.debug) {
+      status.agentType = this.config.agentType;
+      status.channelNamespace = this.channel ? this.channel.split(":")[0] : null;
+      status.registered = !!this.channel;
+      status.lastError = this.lastError;
+    }
+    return status;
+  }
+
   async [Service.init]() {
     const logger = this.ctx.logger || console;
     if (!this.config.enabled) {
@@ -393,12 +462,17 @@ var AgentosRemoteService = class extends Service {
     }
     // Web UI QR login — the only path on a fresh remote machine (no WorkBuddy
     // desktop, no host-side browser). The user already reaches DSH over HTTP;
-    // the login page rides that same channel.
+    // the login page and the in-client panel (lib/client.js) both ride that
+    // same channel.
     try {
       const webServer = this.ctx.webServer;
       if (webServer?.register) {
-        this.disposeLoginUi = registerLoginUi(webServer, (session) => this.onWebLogin(session), logger);
-        logger.info("[agentos-remote] login page: /agentos-remote/login");
+        this.disposeLoginUi = registerLoginUi(
+          webServer,
+          { onSession: (session) => this.onWebLogin(session), status: () => this.linkStatus() },
+          logger,
+        );
+        logger.info("[agentos-remote] login page: /agentos-remote/login (also a panel in the DSH web UI)");
       }
     } catch (error) {
       logger.warn?.(`[agentos-remote] login UI unavailable: ${error.message}`);
@@ -470,22 +544,27 @@ var AgentosRemoteService = class extends Service {
     }
   }
 
+  /**
+   * The device identity AgentOS keys this machine on.
+   *
+   * This MUST be the same value WorkBuddy Desktop derives, because the mobile
+   * app lists DEVICES by hostId and only shows a device that already has a
+   * record. A random id registers a workspace nobody can address: registration
+   * succeeds, the channel subscribes, and the device still never appears in the
+   * app's picker. Matching the desktop's derivation is what makes the DSH
+   * workspace attach to the device record this machine already has.
+   *
+   * Verified against the live desktop (5.5.6): its logged
+   * `sessionId=<uid>_3bffc704416d2d63fe070b63e81b185f_93adce802be60689` is
+   * exactly `sha256("<hostname>_<homedir>_<platform>_<arch>")[0:32]` on this box.
+   */
   loadHostId() {
-    // Host-independent persisted location: the WorkBuddy config dir if it
-    // exists, else the user's home. Never touch ctx.* services here — Cordis
-    // throws on property access for services this plugin does not inject.
-    const base = path.join(os.homedir(), ".workbuddy");
-    const file = path.join(base, ".dsh-agentos-host-id");
-    try {
-      return fs.readFileSync(file, "utf8").trim() || randomUUID();
-    } catch {
-      const id = randomUUID();
-      try {
-        fs.mkdirSync(base, { recursive: true });
-        fs.writeFileSync(file, id);
-      } catch {}
-      return id;
-    }
+    // Never touch ctx.* services here — Cordis throws on property access for
+    // services this plugin does not inject.
+    return createHash("sha256")
+      .update(`${os.hostname()}_${os.homedir()}_${os.platform()}_${os.arch()}`)
+      .digest("hex")
+      .substring(0, 32);
   }
 
   stop() {
@@ -510,6 +589,10 @@ var AgentosRemoteService = class extends Service {
           this.config.endpoint, this.config.agentType, this.hostId, this.session, this.workspaceDir, logger,
           this.config.deviceName || defaultDeviceName(),
         );
+        // Recorded so the panel can report WHICH namespace we registered into —
+        // the single fact that decides mobile-app enumeration.
+        this.channel = data.channel;
+        this.lastError = null;
         await this.subscribe(data, logger);
         // Wait, polling link health. Server flags RE_REGISTER_WORKSPACE when its
         // view of the registration/websocket goes stale (verified live); the
@@ -537,6 +620,9 @@ var AgentosRemoteService = class extends Service {
         this.stopSocket();
       } catch (error) {
         logger.warn(`[agentos-remote] link error: ${error.message}; retrying in ${REGISTER_RETRY_MS / 1000}s`);
+        // Surfaced on /api/status: this output has no reachable log sink, so a
+        // silent retry loop is undebuggable from the outside.
+        this.lastError = error.message;
         await this.sleep(REGISTER_RETRY_MS);
       }
     }
@@ -569,15 +655,21 @@ var AgentosRemoteService = class extends Service {
     this.stopSocket();
     await new Promise((resolve, reject) => {
       const c = new Centrifuge(data.url, { token: data.connectionToken, websocket: WebSocket });
-      const sub = c.newSubscription(data.channel);
+      // registerWorkspace issues a per-channel token alongside the connection
+      // token, and WorkBuddy Desktop subscribes WITH it. Subscribing anonymously
+      // (no token) is the one call the desktop never makes.
+      const sub = c.newSubscription(
+        data.channel,
+        data.subscriptionToken ? { token: data.subscriptionToken } : undefined,
+      );
       sub.on("publication", (pub) => {
         Promise.resolve(this.onTask(pub?.data)).catch((error) => {
           logger.warn(`[agentos-remote] task failed: ${error.message}`);
           this.publish(data, { kind: "task-error", error: error.message });
         });
       });
-      sub.on("subscribed", () => { logger.info(`[agentos-remote] subscribed: ${data.channel}`); resolve(); });
-      sub.on("unsubscribed", (ctx) => logger.warn(`[agentos-remote] unsubscribed: ${JSON.stringify(ctx)}`));
+      sub.on("subscribed", () => { this.subscribed = true; logger.info(`[agentos-remote] subscribed: ${data.channel}`); resolve(); });
+      sub.on("unsubscribed", (ctx) => { this.subscribed = false; logger.warn(`[agentos-remote] unsubscribed: ${JSON.stringify(ctx)}`); });
       c.on("connected", (ctx) => logger.info(`[agentos-remote] connected client=${ctx.client}`));
       c.on("disconnected", (ctx) => logger.warn(`[agentos-remote] disconnected: ${JSON.stringify(ctx)}`));
       c.on("error", (ctx) => logger.warn(`[agentos-remote] client error: ${JSON.stringify(ctx)}`));
@@ -593,6 +685,7 @@ var AgentosRemoteService = class extends Service {
     try { this.centrifuge?.disconnect(); } catch {}
     this.centrifuge = null;
     this.subscription = null;
+    this.subscribed = false;
   }
 
   publish(_data, payload) {
@@ -664,9 +757,14 @@ export function apply(ctx, config = {}) {
   // ctx.plugin() (not `new`) is what wires the Cordis fiber: it invokes
   // [Service.init] on start, collects disposables, and unloads with the host.
   ctx.plugin(AgentosRemoteService, merged);
-  // The live instance is published as ctx.agentosRemote once init completes
-  // (Cordis Service registration). Returned for tests/diagnostics.
-  return ctx.agentosRemote ?? null;
+  // Deliberately no `return ctx.agentosRemote`: that read is fatal here. Cordis
+  // resolves a service by walking UP the fiber chain, and `agentosRemote` is
+  // provided by the CHILD fiber we just mounted — so it is unreachable from this
+  // context and the proxy throws `cannot get property "agentosRemote" without
+  // inject`, which takes the whole harness down (boot is all-or-nothing). It
+  // would also still be undefined, since the service publishes only once its
+  // async init completes. Callers reach the instance via `ctx.agentosRemote`
+  // from a context that injects it.
 }
 export { AgentosRemoteService, readWorkbuddySession, registerWorkspace };
 //#endregion

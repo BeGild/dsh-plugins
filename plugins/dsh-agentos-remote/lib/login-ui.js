@@ -12,6 +12,11 @@
  *   GET /api/start              create auth state -> { state, authUrl, qr }
  *   GET /api/poll?state=...     server-side token check -> {status}
  *                               (on success: account fetch + credential save)
+ *   GET /api/status             link snapshot for the in-UI panel -> {status}
+ *
+ * `/api/status` is what the browser-side half (lib/client.js) reads: the DSH
+ * web-client panel renders it, so the same facts reach the in-app entry and
+ * the standalone page without a second transport.
  */
 import QRCode from "qrcode";
 import { createAuthState, pollForTokenOnce, fetchAccount, saveCredentials, anonymousHeaders } from "./login-core.js";
@@ -82,11 +87,14 @@ function json(res, code, body) {
 /**
  * Wire the login routes onto a DSH webServer service instance.
  * @param {import('@deepseek-ai/dsh-host-webserver').WebServer} webServer
- * @param {(session: object) => void} onSession  called with the fresh session after a successful login
+ * @param {{ onSession: (session: object) => void, status: () => object }} handlers
+ *   `onSession` receives the fresh session after a successful login; `status`
+ *   returns the link snapshot served to the in-UI panel.
  * @param {{ info?, warn? }} logger
  * @returns dispose function
  */
-export function registerLoginUi(webServer, onSession, logger = console) {
+export function registerLoginUi(webServer, handlers, logger = console) {
+  const onSession = handlers?.onSession;
   /** state -> { session?, doneAt? } for in-flight logins */
   const pending = new Map();
   const disposers = [];
@@ -140,6 +148,18 @@ export function registerLoginUi(webServer, onSession, logger = console) {
         if (entry.failures === undefined) entry.failures = 0;
         if (++entry.failures > 20) pending.delete(state);
         json(res, 200, { status: "pending", error: error.message });
+      }
+    },
+  }));
+
+  disposers.push(webServer.register({
+    kind: "exact",
+    path: `${PAGE_PATH}/api/status`,
+    handler: (_req, res) => {
+      try {
+        json(res, 200, { ok: true, status: handlers?.status?.() ?? null });
+      } catch (error) {
+        json(res, 200, { ok: false, error: error.message });
       }
     },
   }));

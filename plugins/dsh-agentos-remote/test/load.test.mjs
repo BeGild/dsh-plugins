@@ -19,6 +19,7 @@ import {
   readWorkbuddySession,
   registerWorkspace,
 } from '../lib/index.js'
+import { registerLoginUi } from '../lib/login-ui.js'
 
 const HERE = path.dirname(fileURLToPath(import.meta.url))
 const ROOT = path.resolve(HERE, '..')
@@ -49,6 +50,25 @@ function fakeCtx(overrides = {}) {
     },
     ...overrides,
   }
+}
+
+/**
+ * A ctx that guards undeclared property reads the way a real Cordis context
+ * does: anything not already on the target throws `cannot get property ...`.
+ * `fakeCtx` alone is a plain object, so a read that is fatal on a real host
+ * looks harmless here — which is exactly how `apply` returning
+ * `ctx.agentosRemote` shipped and then took down every boot.
+ */
+function guardedCtx(overrides = {}) {
+  const target = fakeCtx(overrides)
+  return new Proxy(target, {
+    get(obj, prop, receiver) {
+      if (typeof prop === 'string' && !Reflect.has(obj, prop)) {
+        throw new Error(`cannot get property "${prop}" without inject`)
+      }
+      return Reflect.get(obj, prop, receiver)
+    },
+  })
 }
 
 /** Run fn with specific env vars set, then restore the previous environment. */
@@ -113,7 +133,7 @@ check('apply() mounts the service with the documented defaults', () => {
   assert.equal(mounted.klass, AgentosRemoteService)
   assert.equal(mounted.config.enabled, true)
   assert.equal(mounted.config.endpoint, 'https://tencent.sso.codebuddy.cn')
-  assert.equal(mounted.config.agentType, 'cli')
+  assert.equal(mounted.config.agentType, 'workbuddy', 'the channel namespace the app enumerates comes from this value')
 })
 
 check('caller config overrides the defaults without dropping the rest', () => {
@@ -126,13 +146,16 @@ check('caller config overrides the defaults without dropping the rest', () => {
   apply(ctx, { endpoint: 'https://example.test', deviceName: 'phone-lab' })
   assert.equal(mounted.config.endpoint, 'https://example.test')
   assert.equal(mounted.config.deviceName, 'phone-lab')
-  assert.equal(mounted.config.agentType, 'cli', 'untouched keys keep their default')
+  assert.equal(mounted.config.agentType, 'workbuddy', 'untouched keys keep their default')
 })
 
-check('apply() returns whatever the host published on ctx', () => {
-  const sentinel = { fake: true }
-  const ctx = fakeCtx({ plugin: () => {}, agentosRemote: sentinel })
-  assert.equal(apply(ctx, {}), sentinel)
+check('apply() touches no ctx property it has not injected', () => {
+  // Regression: `apply` used to end with `return ctx.agentosRemote ?? null`.
+  // On a real host that read is fatal — the service lives on a CHILD fiber, so
+  // the proxy throws `cannot get property "agentosRemote" without inject` and
+  // the entire profile fails to boot. Asserted against a guarded ctx, because a
+  // plain-object fake cannot see the difference.
+  assert.equal(apply(guardedCtx({ plugin: () => {} }), {}), undefined)
 })
 
 // ------------------------------------------------- credential discovery (pure)
@@ -197,6 +220,117 @@ check('the lazily-imported runtime dependencies are declared', () => {
     assert.ok(pkg.dependencies?.[dep], `${dep} must be a declared dependency`)
   }
   assert.ok(pkg.dependencies?.qrcode, 'qrcode backs the login QR code')
+})
+
+// -------------------------------------------------- UI status (panel-facing)
+
+/**
+ * Call linkStatus on a bare `this`: the snapshot only reads instance fields, so
+ * no Cordis service, no init, and no credentials file are needed to pin it.
+ */
+function linkStatusOf(fields) {
+  return AgentosRemoteService.prototype.linkStatus.call({
+    linkState: AgentosRemoteService.prototype.linkState,
+    ...fields,
+  })
+}
+
+check('linkStatus reports the facts the in-UI panel renders', () => {
+  const status = linkStatusOf({
+    config: { endpoint: 'https://example.test', deviceName: 'phone-lab', workspaceDir: null },
+    session: undefined,
+    subscribed: false,
+    stopped: false,
+    workspaceDir: '/tmp/proj',
+  })
+  assert.equal(status.loggedIn, false)
+  assert.equal(status.link, 'waiting-login', 'no credentials is the state a fresh machine is in')
+  assert.equal(status.device, 'phone-lab', 'config wins over the hostname default')
+  assert.equal(status.workspace, 'proj', 'the app sees the directory name, not the full path')
+  assert.equal(status.endpoint, 'https://example.test')
+})
+
+check('linkStatus never carries a credential', () => {
+  // The route rides the same unauthenticated web surface as the login page, so
+  // the snapshot is a deliberate allow-list: adding a field here is a leak.
+  const status = linkStatusOf({
+    config: { endpoint: 'https://example.test', deviceName: null, workspaceDir: null },
+    session: { auth: { accessToken: 'SECRET-A', refreshToken: 'SECRET-R' }, account: { uid: 'u1', nickname: 'n1' } },
+    subscribed: true,
+    stopped: false,
+    workspaceDir: '/tmp/proj',
+  })
+  assert.deepEqual(Object.keys(status).sort(), ['device', 'endpoint', 'link', 'loggedIn', 'nickname', 'uid', 'workspace'])
+  assert.equal(status.link, 'subscribed', 'a live channel subscription is what "tasks can arrive" means')
+  assert.ok(!JSON.stringify(status).includes('SECRET'), 'no token may appear in the panel payload')
+})
+
+check('config.debug adds link diagnostics and still no credential', () => {
+  // The device-list failure mode is "registered fine, enumerable never", and the
+  // channel NAMESPACE is the only fact that separates the two. It stays out of
+  // the default payload; this is the opt-in that makes it observable.
+  const status = linkStatusOf({
+    config: { endpoint: 'https://example.test', deviceName: null, workspaceDir: null, debug: true, agentType: 'workbuddy' },
+    session: { auth: { accessToken: 'SECRET-A' }, account: { uid: 'u1', nickname: 'n1' } },
+    subscribed: true,
+    stopped: false,
+    workspaceDir: '/tmp/proj',
+    channel: 'copilot_workbuddy:u1_deadbeef_proj',
+    lastError: null,
+  })
+  assert.equal(status.channelNamespace, 'copilot_workbuddy', 'the namespace is what decides app enumeration')
+  assert.equal(status.agentType, 'workbuddy')
+  assert.equal(status.registered, true)
+  assert.ok(!status.channelNamespace.includes('deadbeef'), 'the namespace prefix must not carry the hostId')
+  assert.ok(!JSON.stringify(status).includes('SECRET'), 'debug mode is not a licence to leak the token')
+})
+
+check('the service tracks subscription state for linkStatus', () => {
+  const source = readFileSync(path.join(ROOT, 'lib', 'index.js'), 'utf8')
+  assert.match(source, /sub\.on\("subscribed",\s*\(\)\s*=>\s*\{\s*this\.subscribed = true/, 'subscribed must be recorded')
+  assert.match(source, /this\.subscribed = false/, 'and cleared on unsubscribe/teardown')
+})
+
+check('the login UI registers the status route the browser half reads', async () => {
+  const routes = []
+  const webServer = {
+    register: (spec) => {
+      routes.push(spec)
+      return () => {}
+    },
+  }
+  const snapshot = { loggedIn: false, link: 'waiting-login' }
+  registerLoginUi(webServer, { onSession: () => {}, status: () => snapshot }, fakeCtx().logger)
+
+  const paths = routes.map((r) => r.path)
+  assert.deepEqual(paths, [
+    '/agentos-remote/login',
+    '/agentos-remote/login/api/start',
+    '/agentos-remote/login/api/poll',
+    '/agentos-remote/login/api/status',
+  ])
+
+  const statusRoute = routes.find((r) => r.path.endsWith('/api/status'))
+  assert.equal(statusRoute.kind, 'exact')
+  let body
+  await statusRoute.handler(
+    { url: '/agentos-remote/login/api/status' },
+    { writeHead: () => {}, end: (text) => { body = JSON.parse(text) } },
+  )
+  assert.deepEqual(body, { ok: true, status: snapshot })
+})
+
+check('a status provider that throws degrades to ok:false instead of a 500', async () => {
+  const routes = []
+  const webServer = { register: (spec) => { routes.push(spec); return () => {} } }
+  registerLoginUi(webServer, { onSession: () => {}, status: () => { throw new Error('boom') } }, fakeCtx().logger)
+  let body
+  await routes.find((r) => r.path.endsWith('/api/status')).handler(
+    { url: '/agentos-remote/login/api/status' },
+    { writeHead: () => {}, end: (text) => { body = JSON.parse(text) } },
+  )
+  assert.equal(body.ok, false)
+  assert.equal(body.error, 'boom')
 })
 
 check('listing readiness: keywords, files, repository, truthful description', () => {
