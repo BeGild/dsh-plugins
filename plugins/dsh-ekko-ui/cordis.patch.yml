@@ -1,0 +1,8 @@
+# dsh-ekko-ui bundle patch.
+#
+# One row. The host half (lib/index.js) registers nothing; the browser half
+# (lib/client.js, declared by dsh.client) is picked up from the same row and
+# replaces the conversation's turn row and built-in tool rows.
+- insert:
+    - id: ekko-ui
+      name: dsh-ekko-ui

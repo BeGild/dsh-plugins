@@ -14,6 +14,7 @@ plugins/
   dsh-session-introspect/ session_introspect — 实时会话自省（自身事实、兄弟会话、事件窗口、fork 谱系）
   dsh-agentos-remote/     agentos-remote     — WorkBuddy 手机 App 远控（AgentOS 协议 + 微信扫码登录）
   dsh-zcode-theme/        (no tool)          — Web UI 主题：ZCode 的 zai 配色与 text-ui 字阶
+  dsh-ekko-ui/            (no tool)          — 对话输出重绘：回合折叠行、无边框工具行、diff 视图、耗时/TPS、特殊操作着色
 scripts/
   validate.mjs        契约门禁（R1–R10）
   test-all.mjs        跑所有插件的测试
