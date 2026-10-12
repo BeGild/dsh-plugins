@@ -15,6 +15,7 @@ plugins/
   dsh-agentos-remote/     agentos-remote     — WorkBuddy 手机 App 远控（AgentOS 协议 + 微信扫码登录）
   dsh-zcode-theme/        (no tool)          — Web UI 主题：ZCode 的 zai 配色与 text-ui 字阶
   dsh-ekko-ui/            (no tool)          — 对话输出重绘：回合折叠行、无边框工具行、diff 视图、耗时/TPS、特殊操作着色
+  dsh-ekko-workspace/     (no tool)          — 默认工作区：无项目会话落时间戳草稿目录，聚合到「默认工作区」分类
 scripts/
   validate.mjs        契约门禁（R1–R10）
   test-all.mjs        跑所有插件的测试

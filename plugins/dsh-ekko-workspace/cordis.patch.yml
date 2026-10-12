@@ -1,0 +1,8 @@
+# dsh-ekko-workspace bundle patch.
+#
+# One row. The host half (lib/index.js) registers nothing; the browser half
+# (lib/client.js, declared by dsh.client) is picked up from the same row and
+# reroutes project-less session creation into the default workspace.
+- insert:
+    - id: ekko-workspace
+      name: dsh-ekko-workspace
