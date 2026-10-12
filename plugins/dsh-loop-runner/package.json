@@ -1,6 +1,6 @@
 {
   "name": "dsh-loop-runner",
-  "version": "0.1.1",
+  "version": "0.1.6",
   "description": "Two kinds of scheduled jobs for DeepSeek Harness: zero-token JS watcher scripts whose deduped events escalate into real agent sessions, and cron/interval agent jobs — managed by model tools and a native web panel.",
   "type": "module",
   "main": "lib/index.js",

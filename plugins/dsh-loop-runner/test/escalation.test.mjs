@@ -36,6 +36,10 @@ function fakeAgents(script = {}) {
   const agents = {
     calls,
     async create(opts) {
+      if (script.createError && !calls.createErrored) {
+        calls.createErrored = true
+        throw new Error(script.createError)
+      }
       calls.created.push(opts)
       return makeHandle(script, calls, opts.sessionId)
     },
@@ -58,7 +62,11 @@ function makeHandle(script, calls, sessionId) {
       },
       followup(message) {
         calls.followups.push(message)
-        events.push({ seq: 8, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: script.text ?? 'ok result' }] } } })
+        if (script.turnError) {
+          events.push({ seq: 8, type: 'turn/end', data: { reason: { kind: 'error', error: { message: script.turnError } } } })
+        } else {
+          events.push({ seq: 8, type: 'assistant/message', data: { message: { content: [{ type: 'text', text: script.text ?? 'ok result' }] } } })
+        }
       },
       async whenIdle() {
         if (script.idleError) throw new Error(script.idleError)
@@ -77,7 +85,7 @@ function makeEscalator(ctxAdds = {}, script = {}) {
   const escalator = new Escalator({
     ctx: { agents: fakeAgents(script), ...ctxAdds },
     store,
-    defaults: { mode: 'fresh', provider: '', model: '', timeoutMinutes: 30 },
+    defaults: { mode: 'fresh', provider: '', model: '', timeoutMinutes: 30, workdirRoot: path.join(d, 'ws') },
     logger: quietLogger,
   })
   return { escalator, store, d }
@@ -105,7 +113,7 @@ await check('happy path: session created, prompt follows contract, text extracte
   assert.equal(agents.followups.length, 1)
   assert.match(agents.followups[0].content[0].text, /处理该事件/)
   assert.match(agents.followups[0].content[0].text, /"subject": "hi"/)
-  assert.equal(agents.followups[0].source.plugin, 'dsh-loop-runner')
+  assert.deepEqual(agents.followups[0].source, { kind: 'user' })
   assert.equal(agents.disposed, 1, 'fresh handles disposed')
   const ledger = store.listEscalations(10)
   assert.equal(ledger.length, 1)
@@ -118,7 +126,7 @@ await check('happy path: session created, prompt follows contract, text extracte
 await check('no agents service -> settled failure with a clear error, no throw', async () => {
   const d = dir()
   const store = new Store(path.join(d, 'state.json'), { debounceMs: 5 }).load()
-  const escalator = new Escalator({ ctx: {}, store, defaults: { mode: 'fresh', provider: '', model: '', timeoutMinutes: 30 }, logger: quietLogger })
+  const escalator = new Escalator({ ctx: {}, store, defaults: { mode: 'fresh', provider: '', model: '', timeoutMinutes: 30, workdirRoot: path.join(d, 'ws') }, logger: quietLogger })
   const result = await escalator.escalate(watchJob(), anEvent, 'event')
   assert.equal(result.ok, false)
   assert.match(result.error, /ctx\.agents/)
@@ -151,7 +159,7 @@ await check('timeout cancels a hanging agent and settles failed', async () => {
   const escalator = new Escalator({
     ctx: { agents },
     store,
-    defaults: { mode: 'fresh', provider: '', model: '', timeoutMinutes: 30 },
+    defaults: { mode: 'fresh', provider: '', model: '', timeoutMinutes: 30, workdirRoot: path.join(d, 'ws') },
     logger: quietLogger,
   })
   const job = watchJob({ escalation: { mode: 'fresh', instructions: 'x', timeoutMinutes: 0.001 } }) // 60ms
@@ -186,13 +194,42 @@ await check('pinned mode: create once, reuse cached handle; cold start resumes',
   const escalator2 = new Escalator({
     ctx: { agents: fakeAgents({ text: 'third turn' }) },
     store,
-    defaults: { mode: 'fresh', provider: '', model: '', timeoutMinutes: 30 },
+    defaults: { mode: 'fresh', provider: '', model: '', timeoutMinutes: 30, workdirRoot: path.join(d, 'ws') },
     logger: quietLogger,
   })
   const cold = await escalator2.escalate(store.getJob('j1'), { ...anEvent, eventId: 'evt-3' }, 'event')
   assert.equal(cold.ok, true)
   assert.equal(escalator2.ctx.agents.calls.resumed.length, 1)
   assert.equal(escalator2.ctx.agents.calls.created.length, 0)
+  rmSync(d, { recursive: true, force: true })
+})
+
+await check('session creation always carries meta.cwd (0.2.0 persona needs {{cwd}})', async () => {
+  const { escalator, d } = makeEscalator({}, { text: 'ok' })
+  await escalator.escalate(watchJob(), anEvent, 'event')
+  const created = escalator.ctx.agents.calls.created[0]
+  assert.ok(created.meta?.cwd, 'meta.cwd present without a job workdir')
+  assert.match(created.meta.cwd.replace(/\\/g, '/'), /\/ws\/loop-j1$/, 'defaults to a per-job dir under workdirRoot')
+  rmSync(d, { recursive: true, force: true })
+})
+
+await check('turn/end error reason surfaces in the failure', async () => {
+  const { escalator, store, d } = makeEscalator({}, { turnError: 'prompt variable "{{cwd}}" has no value for this assembly' })
+  const result = await escalator.escalate(watchJob(), anEvent, 'event')
+  assert.equal(result.ok, false)
+  assert.match(result.error, /agent turn failed: prompt variable/)
+  assert.match(store.listEscalations(1)[0].error, /agent turn failed/)
+  rmSync(d, { recursive: true, force: true })
+})
+
+await check('deterministic session collision on retry resumes instead of dying', async () => {
+  const { escalator, d } = makeEscalator({}, { text: 'retried fine', createError: 'session "loop-j1-abc" already exists' })
+  const result = await escalator.escalate(watchJob(), anEvent, 'event')
+  assert.equal(result.ok, true)
+  const calls = escalator.ctx.agents.calls
+  assert.equal(calls.created.length, 0, 'create was rejected')
+  assert.equal(calls.resumed.length, 1, 'fell back to resume')
+  assert.match(result.sessionId, /^loop-j1-/, 'ran inside the deterministic session id')
   rmSync(d, { recursive: true, force: true })
 })
 
@@ -205,7 +242,7 @@ await check('pinned resume failure falls back to a fresh create', async () => {
     async create(opts) { calls.created.push(opts); return good.create(opts) },
     async resume() { calls.resumed.push(1); throw new Error('session gone') },
   }
-  const escalator = new Escalator({ ctx: { agents }, store, defaults: { mode: 'fresh', provider: '', model: '', timeoutMinutes: 30 }, logger: quietLogger })
+  const escalator = new Escalator({ ctx: { agents }, store, defaults: { mode: 'fresh', provider: '', model: '', timeoutMinutes: 30, workdirRoot: path.join(d, 'ws') }, logger: quietLogger })
   const job = watchJob({ id: 'p2', escalation: { mode: 'pinned', instructions: 'x', timeoutMinutes: 30 }, pinnedSessionId: 'old-session' })
   const result = await escalator.escalate(job, anEvent, 'event')
   assert.equal(result.ok, true)

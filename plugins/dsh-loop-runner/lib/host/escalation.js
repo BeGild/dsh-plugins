@@ -14,6 +14,9 @@
  */
 
 import { createHash, randomUUID } from 'node:crypto'
+import { mkdirSync } from 'node:fs'
+import os from 'node:os'
+import path from 'node:path'
 
 /** Prompt payload cap: bounded context for the next LLM decision, never a dump. */
 const MAX_PAYLOAD_CHARS = 16000
@@ -63,6 +66,25 @@ export function extractAssistantText(session, startSeq) {
   } catch {
     return ''
   }
+}
+
+/**
+ * Last turn/end error reason in the log, if any — surfaces the real failure
+ * ("prompt variable {{cwd}} has no value…") instead of a bare "no assistant
+ * text".
+ */
+export function extractTurnError(session, startSeq) {
+  try {
+    const events = session.snapshotEvents(startSeq)
+    for (let i = events.length - 1; i >= 0; i--) {
+      const event = events[i]
+      if (event?.type !== 'turn/end') continue
+      const reason = event?.data?.reason ?? event?.reason
+      const message = reason?.error?.message ?? reason?.message
+      if (reason?.kind === 'error' || message) return String(message ?? JSON.stringify(reason).slice(0, 200))
+    }
+  } catch { /* best effort */ }
+  return null
 }
 
 export class Escalator {
@@ -145,7 +167,11 @@ export class Escalator {
 
     const suffix = event ? hash8(event.eventId) : `${this.now().toString(36)}${Math.random().toString(36).slice(2, 5)}`
     const sessionId = `loop-${slug(job.id)}-${suffix}`
-    const cwd = job.escalation?.workdir || undefined
+    // dsh 0.2.0's persona assembly REQUIRES {{cwd}}: a session created without
+    // meta.cwd fails every turn with `prompt variable "{{cwd}}" has no value`
+    // (section "deployment:persona-suffix"). Always carry one — the job's
+    // workdir, else a per-job dir under workdirRoot.
+    const cwd = this.resolveCwd(job)
     let handle
     let reused = false
 
@@ -157,7 +183,7 @@ export class Escalator {
       try {
         handle = await (mode === 'pinned' && job.pinnedSessionId
           ? agents.resume({ resumeSessionId: job.pinnedSessionId, ...(Object.keys(agentOptions).length ? { agentOptions } : {}) })
-          : agents.create({ sessionId, ...(Object.keys(agentOptions).length ? { agentOptions } : {}), ...(cwd ? { meta: { cwd } } : {}) }))
+          : await createOrResume(agents, { sessionId, agentOptions, cwd }))
         if (mode === 'pinned') {
           const liveId = handle?.agent?.session?.id ?? sessionId
           this.store.mutate((s) => { const live = s.jobs[job.id]; if (live) live.pinnedSessionId = liveId })
@@ -169,10 +195,10 @@ export class Escalator {
         if (mode !== 'pinned') throw error
         this.logger.warn?.(`[loop-runner] pinned resume failed for ${job.id}, creating fresh: ${error?.message || error}`)
         this.pinned.delete(job.id)
-        handle = await agents.create({
-          sessionId,
-          ...(Object.keys(agentOptions).length ? { agentOptions } : {}),
-          ...(cwd ? { meta: { cwd } } : {}),
+        handle = await createOrResume(agents, {
+          sessionId: `${sessionId}-${this.now().toString(36)}`,
+          agentOptions,
+          cwd,
         })
         const liveId = handle?.agent?.session?.id ?? sessionId
         this.store.mutate((s) => { const live = s.jobs[job.id]; if (live) live.pinnedSessionId = liveId })
@@ -185,11 +211,16 @@ export class Escalator {
     const finalSessionId = agent.session?.id ?? sessionId
     this.attachWorkspace(finalSessionId, cwd)
 
+    // Message shape verified live on dsh 0.2.0 by dsh-client-auto-continue's
+    // own auto-send: {id, role:'user', content, source:{kind:'user'}}. A
+    // `plugin`-sourced followup is NOT admitted as a turn here — the turn
+    // errors out before a user/message event lands and whenIdle resolves
+    // with no assistant text.
     agent.followup({
       id: randomUUID(),
       role: 'user',
       content: [{ type: 'text', text: prompt }],
-      source: { kind: 'plugin', plugin: 'dsh-loop-runner' },
+      source: { kind: 'user' },
     })
 
     let timedOut = false
@@ -217,9 +248,23 @@ export class Escalator {
     // Pinned handles stay alive for the next fire; fresh ones are one-shot.
     if (mode !== 'pinned') await disposeHandle(handle)
     if (!text) {
-      return { ok: false, sessionId: finalSessionId, error: 'agent produced no assistant text' }
+      const turnError = extractTurnError(agent.session, startSeq)
+      return {
+        ok: false,
+        sessionId: finalSessionId,
+        error: turnError ? `agent turn failed: ${turnError}` : 'agent produced no assistant text',
+      }
     }
     return { ok: true, sessionId: finalSessionId, text }
+  }
+
+  /** Job workdir, else a per-job directory under workdirRoot (created lazily). */
+  resolveCwd(job) {
+    if (job.escalation?.workdir) return job.escalation.workdir
+    const root = this.defaults.workdirRoot || path.join(os.homedir(), 'workspaces')
+    const dir = path.join(root, `loop-${slug(job.id)}`)
+    try { mkdirSync(dir, { recursive: true }) } catch { /* best effort; meta.cwd still names it */ }
+    return dir
   }
 
   /**
@@ -251,6 +296,28 @@ export class Escalator {
         this.logger.warn?.(`[loop-runner] workspace attach failed (${error?.message || error}); runs still work, only sidebar grouping is missing`)
       }
     }
+  }
+}
+
+/**
+ * Create a session, resuming it when a previous attempt already persisted that
+ * deterministic id (an escalation that failed mid-turn leaves the session on
+ * disk; retrying the same event must not die on the collision).
+ */
+async function createOrResume(agents, { sessionId, agentOptions, cwd }) {
+  const create = () => agents.create({
+    sessionId,
+    ...(Object.keys(agentOptions).length ? { agentOptions } : {}),
+    ...(cwd ? { meta: { cwd } } : {}),
+  })
+  try {
+    return await create()
+  } catch (error) {
+    if (!/already exists/i.test(String(error?.message || error))) throw error
+    return await agents.resume({
+      resumeSessionId: sessionId,
+      ...(Object.keys(agentOptions).length ? { agentOptions } : {}),
+    })
   }
 }
 

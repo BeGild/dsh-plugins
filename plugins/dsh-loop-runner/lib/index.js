@@ -29,7 +29,12 @@ import { registerTools, SYSTEM_PROMPT_GUIDANCE } from './host/tools.js'
 import { registerRoutes } from './host/routes.js'
 
 export const name = 'dsh-loop-runner'
-export const inject = ['webServer', 'tools', 'systemPrompt']
+// 'agents' is injected on purpose: Cordis throws `cannot get property "agents"
+// without inject` on undeclared service access, so the lazy-read trick does
+// not work on 0.2.0. A host without agent services cannot use this plugin
+// anyway — parking the fiber there is the honest outcome (same choice as
+// dsh-timer-agent, the 0.2.0-native reference).
+export const inject = ['webServer', 'tools', 'systemPrompt', 'agents']
 
 export const Config = Schema.object({
   enabled: Schema.boolean().default(true),
@@ -41,6 +46,7 @@ export const Config = Schema.object({
   escalationProvider: Schema.string().default(''),
   escalationModel: Schema.string().default(''),
   escalationTimeoutMinutes: Schema.number().default(30).min(1),
+  workdirRoot: Schema.string().default(''),
   consumerMaxAttempts: Schema.number().default(5).min(1),
   seenRetentionDays: Schema.number().default(90).min(1),
   eventRetentionDays: Schema.number().default(30).min(1),
@@ -82,6 +88,7 @@ export function apply(ctx, config = {}) {
       provider: config.escalationProvider ?? '',
       model: config.escalationModel ?? '',
       timeoutMinutes: config.escalationTimeoutMinutes ?? 30,
+      workdirRoot: config.workdirRoot ?? '',
     },
     logger,
   })

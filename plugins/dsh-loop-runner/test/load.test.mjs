@@ -29,7 +29,7 @@ console.log('dsh-loop-runner load + integration tests\n')
 
 await check('plugin identity and injects', () => {
   assert.equal(name, 'dsh-loop-runner')
-  assert.deepEqual([...inject].sort(), ['systemPrompt', 'tools', 'webServer'])
+  assert.deepEqual([...inject].sort(), ['agents', 'systemPrompt', 'tools', 'webServer'])
 })
 
 await check('Config schema produces complete defaults', () => {

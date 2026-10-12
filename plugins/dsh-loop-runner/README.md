@@ -67,9 +67,10 @@ dsh plugin --profile web add dsh-loop-runner        # from npm (once published)
 dsh plugin --profile web add ./dsh-loop-runner-0.1.0.tgz
 ```
 
-Requires a `dsh web` profile (the panel rides the web server) and an agents-providing host
-for escalations. Without agent services the plugin still boots — escalations fail with a
-clear message instead of taking the profile down.
+Requires a `dsh web` profile (the panel rides the web server) whose host also
+provides agent services (`agents` is a hard inject — escalation is the point of
+the plugin). On a host without them the plugin parks and the boot fails loudly
+instead of escalating into nothing.
 
 ## Config (all optional, schemastery defaults)
 
