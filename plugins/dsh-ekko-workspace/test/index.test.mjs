@@ -137,10 +137,19 @@ await check('stamp formats local time WorkBuddy-style', () => {
   assert.equal(stamp(when), '2026-10-12-09-05-03')
 })
 
-await check('rootFor honours a configured root and defaults to <home>/workspaces', () => {
+await check('rootFor honours a configured root and defaults to $DSH_HOME/workspaces', () => {
   assert.equal(rootFor('E:\\scratch'), path.resolve('E:\\scratch'))
-  assert.equal(rootFor(''), path.join(homedir(), 'workspaces'))
-  assert.equal(rootFor(undefined), path.join(homedir(), 'workspaces'))
+  const saved = process.env.DSH_HOME
+  try {
+    const envHome = path.join(tmpdir(), 'ekko-ws-env-home')
+    process.env.DSH_HOME = envHome
+    assert.equal(rootFor(''), path.join(envHome, 'workspaces'))
+    delete process.env.DSH_HOME
+    assert.equal(rootFor(undefined), path.join(homedir(), '.dsh', 'workspaces'))
+  } finally {
+    if (saved === undefined) delete process.env.DSH_HOME
+    else process.env.DSH_HOME = saved
+  }
 })
 
 await check('samePath ignores separators and drive-letter case', () => {

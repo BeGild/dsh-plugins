@@ -15,7 +15,7 @@ This plugin's **host half** installs that behavior in three moves, all scoped
 to the default workspace only:
 
 1. **Register the category.** At load it mkdir -p's the root
-   (`<home>/workspaces`, configurable) and registers it as a real workspace
+   (`$DSH_HOME/workspaces`, configurable) and registers it as a real workspace
    titled 默认工作区 — prepended to the sidebar order, so the native tree
    shows it before anything else, with no UI replaced.
 2. **Relax membership for the root.** `Workspace.attachSession` also accepts
@@ -41,7 +41,7 @@ not caches.
 
 | Key | Default | Meaning |
 |---|---|---|
-| `root` | `''` | Backing directory; empty = `<home>/workspaces`. |
+| `root` | `''` | Backing directory; empty = `$DSH_HOME/workspaces`. |
 | `title` | `'默认工作区'` | Sidebar title; a user-renamed title is never overwritten. |
 
 ## What it touches

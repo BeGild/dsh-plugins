@@ -1,6 +1,6 @@
 {
   "name": "dsh-ekko-workspace",
-  "version": "0.2.1",
+  "version": "0.2.2",
   "description": "A default workspace for project-less DSH sessions: every new session gets its own timestamped scratch folder as cwd, and all of them aggregate under one sidebar category.",
   "type": "module",
   "main": "lib/index.js",

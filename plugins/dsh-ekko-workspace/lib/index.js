@@ -44,7 +44,7 @@ import Schema from '@deepseek-ai/schemastery'
 export const name = 'dsh-ekko-workspace'
 
 export const Config = Schema.object({
-  root: Schema.string().default('').description('Backing directory of the default workspace; empty = <home>/workspaces.'),
+  root: Schema.string().default('').description('Backing directory of the default workspace; empty = $DSH_HOME/workspaces.'),
   title: Schema.string().default('默认工作区').description('Sidebar title of the default workspace.'),
 })
 
@@ -63,13 +63,24 @@ export function stamp(now) {
 }
 
 /**
+ * The harness home: explicit $DSH_HOME wins, else `~/.dsh` (the same
+ * resolution the ekkobuddy bundle uses).
+* @returns the DSH home directory.
+*/
+function dshHome() {
+  const env = process.env.DSH_HOME
+  if (env !== undefined && env !== null && env.trim() !== '') return path.resolve(env)
+  return path.join(homedir(), '.dsh')
+}
+
+/**
  * The default workspace's backing directory for a config value.
 * @param configured - the config's `root`; empty means "derive".
 * @returns the absolute root path.
 */
 export function rootFor(configured) {
   if (configured !== undefined && configured !== null && configured.trim() !== '') return path.resolve(configured)
-  return path.join(homedir(), 'workspaces')
+  return path.join(dshHome(), 'workspaces')
 }
 
 /** Strip the Windows \\?\ prefix `fs.realpath` produces. */
