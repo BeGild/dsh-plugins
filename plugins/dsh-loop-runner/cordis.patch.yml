@@ -1,0 +1,19 @@
+# dsh-loop-runner bundle patch
+#
+# One row serves both halves. This row is the host half: the scheduler engine
+# (watcher jobs + agent jobs + the escalation bridge), the loop_* model tools
+# and the /api/dsh-loop-runner/* panel routes. The browser half (lib/client.js,
+# declared by `dsh.client` in package.json) is picked up from the same row by
+# the client module system and adds the "定时任务" sidebar panel.
+#
+# Injected services: `tools` + `systemPrompt` + `webServer` (panel routes ride
+# the web surface). `ctx.agents` is read lazily at escalation time, so a host
+# without agent services still boots — jobs just fail their escalations with a
+# clear error instead of taking the profile down.
+#
+# Config lives in the plugin's schemastery Config (all fields carry defaults);
+# the row itself stays config-free. On dsh 0.2.0+ the profile entry projects
+# the Config schema, so per-profile overrides edit the row config directly.
+- insert:
+    - id: loop-runner
+      name: dsh-loop-runner
