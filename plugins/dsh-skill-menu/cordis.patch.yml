@@ -1,0 +1,17 @@
+# dsh-skill-menu — take over the '/' skill menu from the stock ui-skill row.
+#
+# The stock row (id: ui-skill, from @deepseek-ai/dsh-web-app) registers the
+# '/' trigger source named "skill"; inputTriggers refuses two sources with the
+# same trigger+name, so this layer disables that row and inserts ours, whose
+# browser half registers the same-named source with package sections and a
+# skill glyph per candidate, plus the `skill` tool conversation row it also
+# owned. Same disabling pattern dsh-win32 uses for stock rows it replaces.
+#
+# The stock row keeps working when this bundle is removed or the row below is
+# itself disabled by a later layer.
+- id: ui-skill
+  disabled: true
+
+- insert:
+    - id: dsh-skill-menu
+      name: dsh-skill-menu

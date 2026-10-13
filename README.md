@@ -17,6 +17,7 @@ plugins/
   dsh-ekko-ui/            (no tool)          — 对话输出重绘：回合折叠行、无边框工具行、diff 视图、耗时/TPS、特殊操作着色
   dsh-ekko-workspace/     (no tool)          — 默认工作区：无项目会话落时间戳草稿目录，聚合到「默认工作区」分类
   dsh-skill-market/       skill_market       — 技能包市场：图标网格 Web 面板（详情讲解/一键装卸）+ 工具，装 ZCode 插件与 WorkBuddy 技能（skills/命令/hooks/MCP 全接入）
+  dsh-skill-menu/         (no tool)          — 接管官方 / 技能菜单：候选按技能包分节 + 技能图标，禁用 stock ui-skill 行实现（附带复刻技能工具行）
 scripts/
   validate.mjs        契约门禁（R1–R10）
   test-all.mjs        跑所有插件的测试
