@@ -13,6 +13,7 @@ import { dirname, join } from 'node:path'
 import { fileURLToPath } from 'node:url'
 import { deflateRawSync } from 'node:zlib'
 import {
+  detailEntry,
   hasHooks,
   isSkillName,
   packageSkillFiles,
@@ -117,13 +118,16 @@ await test('settings fall back to the public catalogs and the dsh skill root', (
 await test('a zcode marketplace separates downloadable plugins from built-ins', () => {
   const entries = parseZcodeMarketplace({
     plugins: [
-      { name: 'github', version: '0.1.2', description: 'GitHub workflows.', source: { type: 'zip', url: 'https://cdn/github.zip', sha256: 'abc' } },
+      { name: 'github', version: '0.1.2', description: 'GitHub workflows.', source: { type: 'zip', url: 'https://cdn/github.zip', sha256: 'abc' }, icon: 'https://cdn/icon.png', author: { name: 'Z.ai' }, keywords: ['git'] },
       { name: 'browser-use', description: 'Built in.', source: 'filesystem' },
     ],
   })
   assert.equal(entries.length, 2)
   assert.equal(entries[0].installable, true)
   assert.equal(entries[0].downloadUrl, 'https://cdn/github.zip')
+  assert.equal(entries[0].icon, 'https://cdn/icon.png')
+  assert.deepEqual(entries[0].keywords, ['git'])
+  assert.equal(entries[0].author, 'Z.ai')
   assert.equal(entries[1].installable, false)
   assert.match(entries[1].reason, /built into/)
 })
@@ -179,9 +183,14 @@ await test('a package skill with a legal frontmatter is kept verbatim', () => {
 
 await test('search matches the description and reports truncation', () => {
   const entries = parseWorkbuddySkills({ skills: [
-    { source: 'travel-cn', name: '旅行', description_zh: '机票酒店', version: '1.0.2' },
+    { source: 'travel-cn', name: '旅行', description_zh: '机票酒店', version: '1.0.2', examples_zh: ['查机票'], tags_en: ['travel'] },
     { source: 'other', name: '其他', description_zh: '无关' },
   ] })
+  assert.deepEqual(entries[0].examples, ['查机票'])
+  assert.deepEqual(entries[0].keywords, ['travel'])
+  const detail = detailEntry(entries[0])
+  assert.equal(detail.hasIcon, true)
+  assert.equal(detail.examples[0], '查机票')
   const page = searchEntries(entries, '机票', 1)
   assert.equal(page.total, 1)
   assert.equal(page.entries[0].id, 'travel-cn')
@@ -331,7 +340,7 @@ await test('the client fetches exactly the routes the host registers', async () 
   const fetched = new Set([...client.matchAll(/\$\{BASE\}\/(\w+)/g)].map((m) => m[1]))
   const served = new Set([...host.matchAll(/API_BASE}\/(\w+)/g)].map((m) => m[1]))
   assert.deepEqual(fetched, served)
-  assert.deepEqual([...fetched].sort(), ['install', 'installed', 'remove', 'search'])
+  assert.deepEqual([...fetched].sort(), ['icon', 'install', 'installed', 'remove', 'search'])
 })
 
 console.log(`\n${passed} passed, ${failed} failed`)

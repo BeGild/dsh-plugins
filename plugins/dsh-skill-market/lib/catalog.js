@@ -371,6 +371,9 @@ export function parseZcodeMarketplace(document) {
       downloadUrl: zip,
       sha256: zip ? text(source.sha256) : '',
       requiresPaidPlan: plugin.requiresPaidPlan === true,
+      icon: text(plugin.icon),
+      author: text(plugin.author?.name),
+      keywords: Array.isArray(plugin.keywords) ? plugin.keywords.map(text).filter(Boolean) : [],
     })
   }
   return entries
@@ -393,9 +396,39 @@ export function parseWorkbuddySkills(document) {
       category: Array.isArray(skill.tags_zh) ? skill.tags_zh.join(', ') : '',
       installable: true,
       reason: '',
+      examples: Array.isArray(skill.examples_zh) ? skill.examples_zh.map(text).filter(Boolean) : [],
+      keywords: Array.isArray(skill.tags_en) ? skill.tags_en.map(text).filter(Boolean) : [],
     })
   }
   return entries
+}
+
+/**
+ * The API entry the panel renders: the public fields plus the icon
+ * availability and the explanation fields (author, keywords, examples) the
+ * detail view shows. The model tool keeps the compact publicEntry form —
+ * its output schema sits in the request prefix.
+ * @param {object} entry - one catalog entry.
+ */
+export function detailEntry(entry) {
+  const base = {
+    source: entry.source,
+    kind: entry.kind,
+    id: entry.id,
+    name: entry.name,
+    description: entry.description,
+    version: entry.version || undefined,
+    category: entry.category || undefined,
+    installable: entry.installable === true,
+    reason: entry.reason || undefined,
+  }
+  return {
+    ...base,
+    hasIcon: entry.source === 'zcode' ? Boolean(entry.icon) : true,
+    author: entry.author || undefined,
+    keywords: entry.keywords?.length ? entry.keywords : undefined,
+    examples: entry.examples?.length ? entry.examples : undefined,
+  }
 }
 
 /** Case-insensitive search over id, name, description, and category. */

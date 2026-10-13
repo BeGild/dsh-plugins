@@ -3,10 +3,12 @@
  *
  * The marketplace panel: a sidebar row ("global panel" seat
  * `sidebar.panellist`) whose main-panel cell (`main`, keyed by the same id)
- * lists the two catalogs, searches them, and installs or removes entries with
- * one click. The host half serves the JSON routes this panel fetches; a user
- * who prefers typing can still drive the same operations through the
- * `skill_market` model tool.
+ * shows the two catalogs as a compact card grid. Each card carries the
+ * package icon (served by the host from the marketplace zip or the ZCode
+ * manifest), and clicking a card opens a detail overlay with the full
+ * description, keywords, and usage examples. Install and remove are one click
+ * from the card or the overlay; the host half serves the JSON routes behind
+ * both, and the `skill_market` model tool drives the same operations.
  *
  * Plain ES2020 in the DSH client-bundle format on purpose: no bundler, no
  * build step — this file IS the artifact. Executing it only REGISTERS a
@@ -54,8 +56,19 @@ window.__ModuleLoader__.load({
       "action.installing": "安装中…",
       "action.remove": "卸载",
       "action.removing": "卸载中…",
+      "action.detail": "详情",
+      "action.close": "关闭",
       "badge.installed": "已安装",
       "badge.listedOnly": "仅展示",
+      "detail.examples": "用法示例",
+      "detail.keywords": "关键词",
+      "detail.author": "作者",
+      "detail.source": "来源",
+      "detail.version": "版本",
+      "detail.category": "分类",
+      "detail.kind": "类型",
+      "kind.plugin": "插件",
+      "kind.skill": "技能",
     };
 
     const en = {
@@ -74,8 +87,19 @@ window.__ModuleLoader__.load({
       "action.installing": "Installing…",
       "action.remove": "Remove",
       "action.removing": "Removing…",
+      "action.detail": "Details",
+      "action.close": "Close",
       "badge.installed": "Installed",
       "badge.listedOnly": "Listed only",
+      "detail.examples": "Examples",
+      "detail.keywords": "Keywords",
+      "detail.author": "Author",
+      "detail.source": "Source",
+      "detail.version": "Version",
+      "detail.category": "Category",
+      "detail.kind": "Kind",
+      "kind.plugin": "Plugin",
+      "kind.skill": "Skill",
     };
 
     /**
@@ -137,6 +161,10 @@ window.__ModuleLoader__.load({
         if (!body?.ok) throw new Error(body?.error || "remove failed");
         return body;
       },
+      /** The same-origin icon URL; the host proxies the marketplace's bytes. */
+      iconUrl(source, id) {
+        return `${BASE}/icon?source=${encodeURIComponent(source)}&id=${encodeURIComponent(id)}`;
+      },
     });
 
     const S = {
@@ -145,7 +173,7 @@ window.__ModuleLoader__.load({
         background: "var(--dsw-alias-bg-base)", color: "var(--dsw-alias-label-primary)", font: "inherit",
         display: "flex", flexDirection: "column", alignItems: "center",
       },
-      column: { width: "100%", maxWidth: 680, display: "flex", flexDirection: "column", gap: 14 },
+      column: { width: "100%", maxWidth: 920, display: "flex", flexDirection: "column", gap: 14 },
       title: { margin: 0, fontSize: 17, fontWeight: 600 },
       subtitle: { margin: "6px 0 0", fontSize: 13, lineHeight: "20px", color: "var(--dsw-alias-label-tertiary)" },
       tabs: { display: "flex", gap: 6, flexWrap: "wrap" },
@@ -165,34 +193,87 @@ window.__ModuleLoader__.load({
         color: "var(--dsw-alias-label-primary)",
       },
       button: {
-        padding: "7px 16px", borderRadius: 8, cursor: "pointer", font: "inherit", fontSize: 13,
+        padding: "6px 14px", borderRadius: 8, cursor: "pointer", font: "inherit", fontSize: 12.5,
         border: "1px solid var(--dsw-alias-border-l2)", background: "transparent",
-        color: "var(--dsw-alias-label-primary)",
+        color: "var(--dsw-alias-label-primary)", flex: "none",
       },
       buttonPrimary: {
         border: "1px solid transparent", background: "var(--dsw-alias-state-accent-primary, var(--dsw-alias-link))",
         color: "var(--dsw-alias-bg-base)",
       },
       buttonBusy: { opacity: 0.6, cursor: "default" },
+      grid: {
+        display: "grid", gap: 10,
+        gridTemplateColumns: "repeat(auto-fill, minmax(232px, 1fr))",
+      },
       card: {
-        padding: "14px 16px", borderRadius: 12, border: "1px solid var(--dsw-alias-border-l2)",
-        background: "var(--dsw-alias-bg-layer-1)",
+        padding: "12px 12px 10px", borderRadius: 12, border: "1px solid var(--dsw-alias-border-l2)",
+        background: "var(--dsw-alias-bg-layer-1)", display: "flex", flexDirection: "column", gap: 8,
+        cursor: "pointer",
       },
-      cardHead: { display: "flex", alignItems: "baseline", gap: 10 },
-      name: { fontSize: 14, fontWeight: 600, overflowWrap: "anywhere" },
-      meta: { fontSize: 12, color: "var(--dsw-alias-label-tertiary)", marginTop: 2, overflowWrap: "anywhere" },
-      desc: {
-        fontSize: 12.5, lineHeight: "19px", color: "var(--dsw-alias-label-secondary)", marginTop: 8,
-        display: "-webkit-box", WebkitLineClamp: 3, WebkitBoxOrient: "vertical", overflow: "hidden",
+      cardHead: { display: "flex", gap: 10, alignItems: "center", minWidth: 0 },
+      iconBox: {
+        width: 38, height: 38, borderRadius: 9, flex: "none", overflow: "hidden",
+        background: "var(--dsw-alias-bg-layer-2)", display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 16, fontWeight: 600, color: "var(--dsw-alias-label-secondary)",
       },
-      cardFoot: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 10 },
+      iconImg: { width: "100%", height: "100%", objectFit: "contain", display: "block" },
+      headText: { minWidth: 0, flex: 1 },
+      name: { fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+      meta: { fontSize: 11.5, color: "var(--dsw-alias-label-tertiary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
       badge: {
-        display: "inline-flex", alignItems: "center", padding: "2px 9px", borderRadius: 999, fontSize: 11.5,
+        display: "inline-flex", alignItems: "center", padding: "1px 8px", borderRadius: 999, fontSize: 11,
         background: "var(--dsw-alias-bg-layer-2)", color: "var(--dsw-alias-label-tertiary)", flex: "none",
       },
       badgeOn: { color: "var(--dsw-alias-state-success-primary)" },
+      desc: {
+        fontSize: 12, lineHeight: "18px", color: "var(--dsw-alias-label-secondary)",
+        display: "-webkit-box", WebkitLineClamp: 2, WebkitBoxOrient: "vertical", overflow: "hidden",
+        minHeight: 36,
+      },
+      cardFoot: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 },
+      footLink: {
+        fontSize: 11.5, color: "var(--dsw-alias-link)", background: "none", border: "none",
+        padding: 0, cursor: "pointer", font: "inherit",
+      },
       status: { fontSize: 12.5, lineHeight: "18px", color: "var(--dsw-alias-label-tertiary)" },
       error: { fontSize: 12.5, lineHeight: "18px", color: "var(--dsw-alias-state-danger-primary)" },
+      overlay: {
+        position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex",
+        alignItems: "center", justifyContent: "center", padding: 24, zIndex: 60,
+      },
+      modal: {
+        width: "100%", maxWidth: 560, maxHeight: "82vh", overflowY: "auto", boxSizing: "border-box",
+        padding: "20px 22px", borderRadius: 14, border: "1px solid var(--dsw-alias-border-l2)",
+        background: "var(--dsw-alias-bg-layer-1)",
+      },
+      modalHead: { display: "flex", gap: 14, alignItems: "center" },
+      modalIcon: {
+        width: 52, height: 52, borderRadius: 12, flex: "none", overflow: "hidden",
+        background: "var(--dsw-alias-bg-layer-2)", display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 22, fontWeight: 600, color: "var(--dsw-alias-label-secondary)",
+      },
+      modalName: { margin: 0, fontSize: 16, fontWeight: 600, overflowWrap: "anywhere" },
+      modalId: { fontSize: 12, color: "var(--dsw-alias-label-tertiary)", marginTop: 3, overflowWrap: "anywhere" },
+      closeX: {
+        marginLeft: "auto", flex: "none", background: "none", border: "none", cursor: "pointer",
+        fontSize: 18, lineHeight: 1, color: "var(--dsw-alias-label-tertiary)", padding: 4,
+      },
+      modalDesc: { fontSize: 13, lineHeight: "20px", margin: "14px 0 0", color: "var(--dsw-alias-label-secondary)" },
+      facts: { display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: "5px 14px", margin: "14px 0 0", fontSize: 12.5 },
+      factLabel: { color: "var(--dsw-alias-label-tertiary)", whiteSpace: "nowrap" },
+      factValue: { color: "var(--dsw-alias-label-secondary)", overflowWrap: "anywhere" },
+      chips: { display: "flex", flexWrap: "wrap", gap: 6, margin: "10px 0 0" },
+      chip: {
+        padding: "2px 9px", borderRadius: 999, fontSize: 11.5,
+        background: "var(--dsw-alias-bg-layer-2)", color: "var(--dsw-alias-label-tertiary)",
+      },
+      sectionTitle: { margin: "16px 0 0", fontSize: 12.5, fontWeight: 600, color: "var(--dsw-alias-label-secondary)" },
+      example: {
+        margin: "6px 0 0", padding: "7px 10px", borderRadius: 8, fontSize: 12.5, lineHeight: "18px",
+        background: "var(--dsw-alias-bg-layer-2)", color: "var(--dsw-alias-label-secondary)",
+      },
+      modalFoot: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 },
       iconWrap: { display: "inline-flex", alignItems: "center", justifyContent: "center" },
     };
 
@@ -222,44 +303,138 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * One catalog card: name, meta, description, and the action button.
-     * @param {{t: Function, entry: object, installed: boolean, busy: boolean,
-     *          onAction: (kind: 'install'|'remove') => void}} props
+     * One package icon, served by the host. Falls back to a letter glyph when
+     * the catalog carries none or the bytes fail to load.
+     * @param {{source: string, id: string, name: string, style: object}} props
      */
-    function EntryCard({ t, entry, installed, busy, onAction }) {
-      const meta = [
-        entry.id,
-        entry.version ? `v${entry.version}` : null,
-        entry.category || null,
-      ].filter(Boolean).join(" · ");
+    function EntryIcon({ source, id, name, style }) {
+      const [failed, setFailed] = React.useState(false);
+      const letter = (name || id || "?").trim().charAt(0).toUpperCase() || "?";
+      if (failed) return h("div", { style }, letter);
+      return h("div", { style },
+        h("img", {
+          style: S.iconImg,
+          src: API.iconUrl(source, id),
+          alt: "",
+          loading: "lazy",
+          onError: () => setFailed(true),
+        }),
+      );
+    }
+
+    /**
+     * One grid card: icon, name, meta, clamped description, and the action
+     * row. Clicking anywhere opens the detail overlay.
+     * @param {{t: Function, entry: object, installed: boolean, busy: boolean,
+     *          onAction: (kind: 'install'|'remove') => void, onOpen: () => void}} props
+     */
+    function EntryCard({ t, entry, installed, busy, onAction, onOpen }) {
+      const meta = [entry.id, entry.version ? `v${entry.version}` : null].filter(Boolean).join(" · ");
       const kind = installed ? "remove" : "install";
-      return h("div", { style: S.card },
+      return h("div", { style: S.card, onClick: onOpen },
         h("div", { style: S.cardHead },
-          h("span", { style: S.name }, entry.name || entry.id),
+          h(EntryIcon, { source: entry.source, id: entry.id, name: entry.name, style: S.iconBox }),
+          h("div", { style: S.headText },
+            h("div", { style: S.name }, entry.name || entry.id),
+            h("div", { style: S.meta }, meta),
+          ),
           installed
             ? h("span", { style: { ...S.badge, ...S.badgeOn } }, t("badge.installed"))
             : entry.installable === false
               ? h("span", { style: S.badge, title: entry.reason || "" }, t("badge.listedOnly"))
               : null,
         ),
-        meta ? h("div", { style: S.meta }, meta) : null,
         entry.description ? h("div", { style: S.desc }, entry.description) : null,
-        entry.installable !== false || installed
-          ? h("div", { style: S.cardFoot },
-              h("button", {
+        h("div", { style: S.cardFoot },
+          h("button", {
+            type: "button",
+            style: S.footLink,
+            onClick: (event) => { event.stopPropagation(); onOpen(); },
+          }, t("action.detail")),
+          entry.installable !== false || installed
+            ? h("button", {
+                type: "button",
                 style: { ...S.button, ...(kind === "install" ? S.buttonPrimary : {}), ...(busy ? S.buttonBusy : {}) },
                 disabled: busy,
-                onClick: () => onAction(kind),
-              }, busy ? t(kind === "install" ? "action.installing" : "action.removing") : t(`action.${kind}`)),
-            )
-          : null,
+                onClick: (event) => { event.stopPropagation(); onAction(kind); },
+              }, busy ? t(kind === "install" ? "action.installing" : "action.removing") : t(`action.${kind}`))
+            : null,
+        ),
       );
     }
 
     /**
-     * Main-panel cell: tabs, search, and the card list. Rendered only while
-     * this panel is selected, so nothing polls once the user goes back to the
-     * conversation.
+     * The detail overlay: everything the catalog carries about one entry —
+     * full description, facts, keywords, and usage examples.
+     * @param {{t: Function, entry: object, installed: boolean, busy: boolean,
+     *          onAction: (kind: 'install'|'remove') => void, onClose: () => void}} props
+     */
+    function DetailModal({ t, entry, installed, busy, onAction, onClose }) {
+      const kind = installed ? "remove" : "install";
+      const facts = [
+        [t("detail.kind"), t(entry.kind === "plugin" ? "kind.plugin" : "kind.skill")],
+        [t("detail.source"), entry.source],
+        [t("detail.version"), entry.version || "—"],
+        [t("detail.category"), entry.category || "—"],
+        [t("detail.author"), entry.author || "—"],
+      ];
+      return h("div", { style: S.overlay, onClick: onClose },
+        h("div", { style: S.modal, onClick: (event) => event.stopPropagation() },
+          h("div", { style: S.modalHead },
+            h(EntryIcon, { source: entry.source, id: entry.id, name: entry.name, style: S.modalIcon }),
+            h("div", { style: { minWidth: 0, flex: 1 } },
+              h("h2", { style: S.modalName }, entry.name || entry.id),
+              h("div", { style: S.modalId }, entry.id),
+            ),
+            installed
+              ? h("span", { style: { ...S.badge, ...S.badgeOn, flex: "none" } }, t("badge.installed"))
+              : null,
+            h("button", { type: "button", style: S.closeX, onClick: onClose, "aria-label": t("action.close") }, "✕"),
+          ),
+          entry.description ? h("p", { style: S.modalDesc }, entry.description) : null,
+          entry.reason ? h("p", { style: S.modalDesc }, entry.reason) : null,
+          h("div", { style: S.facts },
+            facts.filter(([, value]) => value).map(([label, value]) =>
+              h(React.Fragment, { key: label },
+                h("span", { style: S.factLabel }, label),
+                h("span", { style: S.factValue }, value),
+              ),
+            ),
+          ),
+          entry.keywords?.length
+            ? h(React.Fragment, null,
+                h("div", { style: S.sectionTitle }, t("detail.keywords")),
+                h("div", { style: S.chips }, entry.keywords.map((keyword) =>
+                  h("span", { key: keyword, style: S.chip }, keyword),
+                )),
+              )
+            : null,
+          entry.examples?.length
+            ? h(React.Fragment, null,
+                h("div", { style: S.sectionTitle }, t("detail.examples")),
+                entry.examples.map((example, index) =>
+                  h("div", { key: index, style: S.example }, example),
+                ),
+              )
+            : null,
+          entry.installable !== false || installed
+            ? h("div", { style: S.modalFoot },
+                h("button", {
+                  type: "button",
+                  style: { ...S.button, ...(kind === "install" ? S.buttonPrimary : {}), ...(busy ? S.buttonBusy : {}) },
+                  disabled: busy,
+                  onClick: () => onAction(kind),
+                }, busy ? t(kind === "install" ? "action.installing" : "action.removing") : t(`action.${kind}`)),
+              )
+            : null,
+        ),
+      );
+    }
+
+    /**
+     * Main-panel cell: tabs, live search, and the card grid. Rendered only
+     * while this panel is selected, so nothing polls once the user goes back
+     * to the conversation.
      * @param {{t: Function, api: typeof API}} props - locale seat + injected face.
      */
     function MarketPanel({ t, api }) {
@@ -272,6 +447,7 @@ window.__ModuleLoader__.load({
       const [busy, setBusy] = React.useState(null);
       const [error, setError] = React.useState("");
       const [note, setNote] = React.useState("");
+      const [selected, setSelected] = React.useState(null);
       const [nonce, setNonce] = React.useState(0);
 
       React.useEffect(() => {
@@ -313,12 +489,13 @@ window.__ModuleLoader__.load({
         setNote("");
         try {
           if (kind === "install") {
-            const result = await api.install(tab, id);
+            const result = await api.install(tab === "installed" ? selected?.source : tab, id);
             setNote(result?.message || t("action.install"));
           } else {
             const result = await api.remove(id);
             setNote(result?.message || t("action.remove"));
           }
+          setSelected(null);
           setNonce((n) => n + 1);
         } catch (e) {
           setError(e.message);
@@ -362,9 +539,9 @@ window.__ModuleLoader__.load({
             ? h("div", { style: S.status }, t("state.loading"))
             : entries.length === 0
               ? h("div", { style: S.status }, error ? t("state.unreachable") : t("state.empty"))
-              : h("div", { style: { ...S.column, gap: 10 } },
+              : h("div", { style: S.grid },
                 truncated || total > entries.length
-                  ? h("div", { style: S.status }, `${entries.length} / ${total}`)
+                  ? h("div", { style: { ...S.status, gridColumn: "1 / -1" } }, `${entries.length} / ${total}`)
                   : null,
                 entries.map((entry) => h(EntryCard, {
                   key: `${entry.source}/${entry.id}`,
@@ -373,9 +550,20 @@ window.__ModuleLoader__.load({
                   installed: installedSet.has(entry.id),
                   busy: busy === entry.id,
                   onAction: (kind) => run(kind, entry.id),
+                  onOpen: () => setSelected(entry),
                 })),
               ),
         ),
+        selected
+          ? h(DetailModal, {
+              t,
+              entry: selected,
+              installed: installedSet.has(selected.id),
+              busy: busy === selected.id,
+              onAction: (kind) => run(kind, selected.id),
+              onClose: () => setSelected(null),
+            })
+          : null,
       );
     }
 

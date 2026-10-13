@@ -4,7 +4,7 @@ Install a ZCode plugin or a WorkBuddy skill into the DeepSeek Harness profile yo
 
 Two faces over one implementation:
 
-- **A web panel** (web profiles). A sidebar row opens a marketplace page with two catalog tabs, a search box, and one-click install/remove. The panel talks to same-origin JSON routes (`/skill-market/api/*`) the host half registers on the profile's web server.
+- **A web panel** (web profiles). A sidebar row opens a marketplace page: two catalog tabs, live search, and a compact card grid. Every card carries the package icon — ZCode icons come from the marketplace manifest, WorkBuddy icons from the catalog zip, both proxied same-origin so nothing loads from a third party — and clicking a card opens a detail sheet with the full description, kind, source, version, category, author, keywords, and (for WorkBuddy skills) usage examples. Install and remove are one click. The panel talks to same-origin JSON routes (`/skill-market/api/*`) the host half registers on the profile's web server.
 - **A model tool**, `skill_market`, with the same operations for conversational use.
 
 A ZCode plugin is installed whole, not just its skills:

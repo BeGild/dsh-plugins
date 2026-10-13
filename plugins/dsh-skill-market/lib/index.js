@@ -35,13 +35,14 @@ import {
   parseCommandFile,
   parseWorkbuddySkills,
   parseZcodeMarketplace,
+  detailEntry,
   pluginHooksDocument,
   pluginMcpConfig,
   resolveSettings,
   searchEntries,
   skillDocument,
 } from './catalog.js'
-import { decodeText, fetchBytes, readZipText, readZipTree } from './fetch.js'
+import { decodeText, fetchBytes, listZip, readZipEntry, readZipText, readZipTree } from './fetch.js'
 import {
   readInstalled,
   removeBundles,
@@ -198,8 +199,36 @@ export async function apply(ctx, config) {
 function createMarket(ctx, settings, commandsRef) {
   const cache = new Map()
   const running = new Map()
+  const iconCache = new Map()
 
-  return {
+  /** Resolve one icon to `{ bytes, contentType }`, or undefined on any miss. */
+  const loadIcon = async (source, id) => {
+    try {
+      if (source === 'zcode') {
+        const entry = await market.entryOf(source, id)
+        if (!entry?.icon) return undefined
+        const bytes = await fetchBytes(entry.icon, settings.requestTimeoutMs)
+        return { bytes, contentType: contentTypeFor(entry.icon) }
+      }
+      if (source === 'workbuddy-skill') {
+        const archive = await skillArchive(settings, cache)
+        for (const ext of ['svg', 'png', 'webp', 'jpg']) {
+          const name = `icons/${id}.${ext}`
+          if (!listZip(archive).some((item) => item.name === name)) continue
+          return {
+            bytes: readZipEntry(archive, listZip(archive).find((item) => item.name === name)),
+            contentType: contentTypeFor(name),
+          }
+        }
+        return undefined
+      }
+      return undefined
+    } catch {
+      return undefined
+    }
+  }
+
+  const market = {
     running,
     commandsRef,
     async sources() {
@@ -220,6 +249,19 @@ function createMarket(ctx, settings, commandsRef) {
         total: page.total,
         truncated: page.truncated,
         message: page.total === 0 ? 'nothing matched' : `${page.entries.length} of ${page.total}`,
+      }
+    },
+
+    /** The same page, with the fields only the panel renders. */
+    async searchDetail(args) {
+      const source = requireSource(args.source)
+      const catalog = await loadCatalog(settings, cache, source)
+      const page = searchEntries(catalog, args.query, args.limit ?? settings.maxResults)
+      return {
+        source,
+        entries: page.entries.map(detailEntry),
+        total: page.total,
+        truncated: page.truncated,
       }
     },
 
@@ -278,7 +320,39 @@ function createMarket(ctx, settings, commandsRef) {
         message: entries.length === 0 ? 'nothing installed by skill_market' : `${entries.length} installed`,
       }
     },
+
+    /**
+     * One entry's icon bytes, or undefined. ZCode icons are remote URLs from
+     * the marketplace document; WorkBuddy icons live at `icons/<id>.(svg|png)`
+     * inside the catalog zip. Results are cached per source/id, misses included.
+     */
+    async icon(source, id) {
+      const key = `${source}/${id}`
+      if (iconCache.has(key)) return iconCache.get(key)
+      const found = await loadIcon(source, id)
+      iconCache.set(key, found)
+      return found
+    },
+
+    /** The catalog entry one id resolves to, detail form, for icon URLs. */
+    async entryOf(source, id) {
+      const catalog = await loadCatalog(settings, cache, requireSource(source))
+      return catalog.find((item) => item.id === requireId(id))
+    },
   }
+
+  return market
+}
+
+/** Content type of one icon path, by extension. */
+function contentTypeFor(name) {
+  const ext = name.split('.').pop().toLowerCase()
+  if (ext === 'svg') return 'image/svg+xml'
+  if (ext === 'png') return 'image/png'
+  if (ext === 'webp') return 'image/webp'
+  if (ext === 'gif') return 'image/gif'
+  if (ext === 'ico') return 'image/x-icon'
+  return 'image/jpeg'
 }
 
 /**
@@ -318,7 +392,7 @@ function registerMarketApi(webServer, market, settings) {
         if (!settings.stateDir) throw new Error('no state directory; set stateDir or DSH_HOME')
         const url = new URL(req.url ?? '/', 'http://dsh.internal')
         const limitRaw = Number(url.searchParams.get('limit'))
-        const page = await market.search({
+        const page = await market.searchDetail({
           source: url.searchParams.get('source') ?? undefined,
           query: url.searchParams.get('q') ?? url.searchParams.get('query') ?? '',
           limit: Number.isFinite(limitRaw) && limitRaw > 0 ? limitRaw : undefined,
@@ -331,12 +405,36 @@ function registerMarketApi(webServer, market, settings) {
   }))
 
   disposers.push(webServer.register({
+    kind: 'prefix',
+    path: `${API_BASE}/icon`,
+    handler: async (req, res) => {
+      const url = new URL(req.url ?? '/', 'http://dsh.internal')
+      const found = await market.icon(
+        url.searchParams.get('source') ?? '',
+        url.searchParams.get('id') ?? '',
+      )
+      if (!found) {
+        res.writeHead(404, { 'Content-Type': 'text/plain; charset=utf-8', 'Cache-Control': 'no-store' })
+        res.end('no icon')
+        return
+      }
+      res.writeHead(200, {
+        'Content-Type': found.contentType,
+        'Cache-Control': 'public, max-age=86400',
+      })
+      res.end(found.bytes)
+    },
+  }))
+
+  disposers.push(webServer.register({
     kind: 'exact',
     path: `${API_BASE}/installed`,
     handler: async (_req, res) => {
       try {
         if (!settings.stateDir) throw new Error('no state directory; set stateDir or DSH_HOME')
-        json(res, 200, { ok: true, ...(await market.installed()) })
+        const records = await readInstalled(settings.stateDir)
+        const entries = Object.values(records).map(detailEntry)
+        json(res, 200, { ok: true, entries, total: entries.length })
       } catch (error) {
         json(res, 400, { ok: false, error: error.message })
       }
