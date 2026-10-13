@@ -5,8 +5,9 @@
  * evaluates it as a classic script that only registers a factory), so this
  * suite stands in for the loader — a fake `window.__ModuleLoader__`, stub
  * modules, and a stub context — and checks what would otherwise fail only in
- * the browser: the bundle contract, locale parity, slot and source
- * registration, and the sectioning the '/' menu renders.
+ * the browser: the bundle contract, locale parity, the early overlay
+ * registration that wins the slash-menu cell, and the render-time
+ * re-ordering that groups skills under package sections.
  */
 import assert from 'node:assert/strict'
 import { readFileSync } from 'node:fs'
@@ -53,12 +54,18 @@ function stubModules() {
     Fragment: 'fragment',
     useState: (initial) => [initial, () => {}],
     useEffect: () => {},
+    useMemo: (fn, deps) => fn(deps),
+    useRef: () => ({ current: null }),
+    useSyncExternalStore: () => ({ open: false, groups: [] }),
   })
   const primitives = {
     StateDot: () => null,
     IconSkillOutline16: () => null,
+    IconChevronRightOutline14: () => null,
     IconChevronDownOutline14: () => null,
     IconInspectOutline12: () => null,
+    ReferenceIcon: () => null,
+    useAnchoredMaxHeight: () => 320,
     rankByName: (skills) => skills,
   }
   return { react, '@deepseek-ai/dsh-client-ui-primitives': primitives }
@@ -90,20 +97,18 @@ await test('materializing requests only the declared modules', async () => {
     return mod
   })
   assert.deepEqual(required.sort(), ['@deepseek-ai/dsh-client-ui-primitives', 'react'])
-  assert.deepEqual(exposed.inject.sort(), [
-    'inputTriggers', 'locale', 'remote', 'remote.skills', 'sessions', 'slots',
-  ])
+  assert.deepEqual(exposed.inject.sort(), ['locale', 'sessions', 'slots'])
 })
 
-await test('apply registers dictionaries with identical keys, the tool row, and the source', async () => {
+await test('apply registers dictionaries with identical keys and only the overlay entry', async () => {
   const registrations = await loadClientBundle()
   const stubs = stubModules()
   const exposed = registrations[0].factory((id) => stubs[id])
 
-  const seen = { locale: {}, slots: [], sources: [] }
+  const seen = { locale: {}, slots: [] }
   const ctx = {
     effect(fn) { fn() },
-    on() {},
+    inject(names, cb) { cb(ctx); return () => {} },
     locale: {
       register(ns, dicts) { seen.locale[ns] = dicts },
       bind: (ns) => (key) => `${ns}:${key}`,
@@ -112,14 +117,8 @@ await test('apply registers dictionaries with identical keys, the tool row, and 
       inject(seat, register) { seen.slots.push({ seat, register }) },
       register: (options, component) => ({ options, component }),
     },
-    remote: { skills: { list: async () => ({ ok: true, value: { skills: [] } }) }, $on() {} },
-    sessions: { subagentAddress: () => undefined },
-    get: (name) => ({
-      registerSource(source) {
-        seen.sources.push(source)
-        return () => {}
-      },
-    }),
+    sessions: { scope: () => ctx },
+    get: () => { throw new Error('render faces must resolve lazily, not at apply') },
   }
   exposed.apply(ctx)
 
@@ -127,18 +126,57 @@ await test('apply registers dictionaries with identical keys, the tool row, and 
   assert.ok(dicts, 'dictionaries registered under the plugin namespace')
   assert.deepEqual(Object.keys(dicts.zh).sort(), Object.keys(dicts.en).sort())
 
-  const seats = seen.slots.map((entry) => entry.register())
-  assert.deepEqual(seats.map((s) => s.options.key), ['skill'])
-
-  assert.equal(seen.sources.length, 1)
-  const source = seen.sources[0]
-  assert.equal(source.trigger, '/')
-  assert.equal(source.name, 'skill')
-  assert.equal(typeof source.candidates, 'function')
-  assert.equal(source.onPick({ candidate: { name: 'x' } }).text, '/x ')
+  assert.equal(seen.slots.length, 1)
+  const { seat, register } = seen.slots[0]
+  assert.equal(seat, 'conversation.input.overlay')
+  const entry = register()
+  assert.equal(entry.options.id, 'slash-menu', 'the stock cell id — first registration wins it')
+  assert.equal(typeof entry.component, 'function')
+  assert.equal(entry.options.inject.length, 1, 'faces resolve lazily per session')
 })
 
-await test('attribution parses the package prefix and sectioning groups local last', async () => {
+await test('the lazy face wires the session controller verbs', async () => {
+  const registrations = await loadClientBundle()
+  const stubs = stubModules()
+  const exposed = registrations[0].factory((id) => stubs[id])
+  const calls = []
+  const controller = {
+    menu: { subscribe() {}, getSnapshot() { return { open: false, groups: [] } } },
+    headers: { subscribe() {}, getSnapshot() { return new Map() } },
+    pick: (...a) => calls.push(['pick', ...a]),
+    pickCrumb: (...a) => calls.push(['pickCrumb', ...a]),
+    hover: (...a) => calls.push(['hover', ...a]),
+    dismiss: () => calls.push(['dismiss']),
+  }
+  const services = { inputTriggers: { sessionOf: () => controller } }
+  const captured = []
+  const ctx = {
+    effect(fn) { fn() },
+    inject(names, cb) { cb(ctx); return () => {} },
+    locale: { register() {}, bind: (ns) => (key) => `${ns}:${key}` },
+    slots: {
+      inject(seat, register) { captured.push(register()) },
+      register: (options, component) => ({ options, component }),
+    },
+    sessions: { scope: (id) => ({ id }) },
+    get: (name) => services[name],
+  }
+  exposed.apply(ctx)
+  const face = captured[0].options.inject('sess-1')
+  assert.deepEqual(Object.keys(face).sort(), ['headers', 'menu', 'onCrumb', 'onDismiss', 'onHover', 'onPick'])
+  face.onPick('skill', 3)
+  face.onCrumb('skill', 1)
+  face.onHover('skill', 2)
+  face.onDismiss()
+  assert.deepEqual(calls, [
+    ['pick', 'skill', 3, undefined],
+    ['pickCrumb', 'skill', 1],
+    ['hover', 'skill', 2],
+    ['dismiss'],
+  ])
+})
+
+await test('attribution parses the prefix; sectioning groups packages first, local last', async () => {
   const registrations = await loadClientBundle()
   const stubs = stubModules()
   const mod = registrations[0].factory((id) => stubs[id])
@@ -161,42 +199,9 @@ await test('attribution parses the package prefix and sectioning groups local la
   assert.deepEqual(rows.map((r) => r.section), [
     'watch-positions', 'watch-positions', 'genui', '本地技能',
   ])
-  assert.deepEqual(rows.map((r) => r.skill.name), ['watchlist', 'close-recap', 'genui', 'plain'])
-})
-
-await test('candidates strip the prefix and carry their package section', async () => {
-  const registrations = await loadClientBundle()
-  const stubs = stubModules()
-  const exposed = registrations[0].factory((id) => stubs[id])
-  const source = { registered: null }
-  const ctx = {
-    effect(fn) { fn() },
-    on() {},
-    locale: { register() {}, bind: (ns) => (key) => (key === 'section.local' ? '本地技能' : `${ns}:${key}`) },
-    slots: { inject() {}, register: () => ({}) },
-    remote: {
-      skills: {
-        list: async () => ({
-          ok: true,
-          value: {
-            skills: [
-              { name: 'watchlist', description: '[watch-positions] Watchlists.', modelInvocable: true },
-              { name: 'manual', description: 'Plain.', modelInvocable: false },
-            ],
-          },
-        }),
-      },
-      $on() {},
-    },
-    sessions: { subagentAddress: () => undefined },
-    get: () => ({ registerSource(s) { source.registered = s; return () => {} } }),
-  }
-  exposed.apply(ctx)
-  const items = await source.registered.candidates({ sessionId: 's' }, { query: '', signal: new AbortController().signal })
-  assert.deepEqual(items, [
-    { name: 'watchlist', description: 'Watchlists.', section: 'watch-positions' },
-    { name: 'manual', description: 'skill-menu:menu.userOnly · Plain.', section: '本地技能' },
-  ])
+  assert.deepEqual(rows.map((r) => r.pkg), ['watch-positions', 'watch-positions', 'genui', undefined])
+  assert.deepEqual(rows.map((r) => r.originalIndex), [0, 2, 3, 1], 'original indices survive re-ordering')
+  assert.deepEqual(rows.map((r) => r.item.name), ['watchlist', 'close-recap', 'genui', 'plain'])
 })
 
 console.log(`\n${passed} passed, ${failed} failed`)

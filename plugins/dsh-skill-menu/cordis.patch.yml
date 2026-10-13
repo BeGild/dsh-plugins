@@ -1,17 +1,16 @@
-# dsh-skill-menu — take over the '/' skill menu from the stock ui-skill row.
+# dsh-skill-menu — own the '/' candidate menu view.
 #
-# The stock row (id: ui-skill, from @deepseek-ai/dsh-web-app) registers the
-# '/' trigger source named "skill"; inputTriggers refuses two sources with the
-# same trigger+name, so this layer disables that row and inserts ours, whose
-# browser half registers the same-named source with package sections and a
-# skill glyph per candidate, plus the `skill` tool conversation row it also
-# owned. Same disabling pattern dsh-win32 uses for stock rows it replaces.
+# The browser half registers `conversation.input.overlay` under the stock
+# cell id `slash-menu` depending only on the early `slots` service. Loaded
+# ahead of dsh-web-app (bundle order; keep this bundle before
+# '@deepseek-ai/dsh-web-app' in dsh.profile.bundles), that registration wins
+# the cell and the stock MenuView never renders — while the stock trigger
+# framework, its '/' source, and its skill tool row all keep running
+# untouched. No official row is disabled and no official file is modified;
+# removing this bundle restores the stock menu as-is.
 #
-# The stock row keeps working when this bundle is removed or the row below is
-# itself disabled by a later layer.
-- id: ui-skill
-  disabled: true
-
+# NOTE the ordering dependency: if this bundle loads after dsh-web-app, the
+# stock MenuView wins the cell and this plugin's view silently never renders.
 - insert:
     - id: dsh-skill-menu
       name: dsh-skill-menu

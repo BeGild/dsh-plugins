@@ -1,7 +1,7 @@
 {
   "name": "dsh-skill-menu",
-  "version": "0.1.1",
-  "description": "Replaces the stock '/' skill menu: candidates grouped under their package section with the attribution stripped from the line, keeping stock pick and conversation-row behavior.",
+  "version": "0.3.2",
+  "description": "Owns the '/' candidate menu view: skill candidates grouped under package sections with marketplace icons, on top of the untouched stock trigger framework.",
   "type": "module",
   "main": "lib/index.js",
   "license": "MIT",
