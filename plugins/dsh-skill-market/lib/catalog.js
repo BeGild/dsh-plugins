@@ -327,6 +327,29 @@ export function firstServer(document) {
   return { key, server: servers[key] }
 }
 
+/**
+ * Prefix one skill file's description with its package attribution.
+ *
+ * The '/' candidate menu, the model's auto-selection, and every skill picker
+ * render the description, so `[package] …` there is the one attribution mark
+ * that shows up everywhere without patching host UI packages. Idempotent.
+ * @param {string} markdown - the original SKILL.md text.
+ * @param {string} packageId - the installing package's id.
+ * @returns {string} the rewritten SKILL.md.
+ */
+export function prefixSkillDescription(markdown, packageId) {
+  if (typeof markdown !== 'string') return markdown
+  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(markdown)
+  if (!match) return markdown
+  if (match[1].includes(`[${packageId}]`)) return markdown
+  const rewritten = match[1].replace(/^(description:[ \t]*)(.*)$/m, (_whole, key, value) => {
+    const description = unquote(value).replace(/\\/g, '\\\\').replace(/"/g, '\\"')
+    return `${key}"[${packageId}] ${description}"`
+  })
+  if (rewritten === match[1]) return markdown
+  return `---\n${rewritten}\n---${markdown.slice(match[0].length)}`
+}
+
 /** The YAML block between the opening fences, or ''. */
 function frontmatterOf(markdown) {
   const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(typeof markdown === 'string' ? markdown : '')

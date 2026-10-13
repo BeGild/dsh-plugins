@@ -65,6 +65,7 @@ window.__ModuleLoader__.load({
       "badge.installed": "已安装",
       "badge.listedOnly": "仅展示",
       "detail.examples": "用法示例",
+      "detail.includes": "包含技能",
       "detail.keywords": "关键词",
       "detail.author": "作者",
       "detail.source": "来源",
@@ -96,6 +97,7 @@ window.__ModuleLoader__.load({
       "badge.installed": "Installed",
       "badge.listedOnly": "Listed only",
       "detail.examples": "Examples",
+      "detail.includes": "Included skills",
       "detail.keywords": "Keywords",
       "detail.author": "Author",
       "detail.source": "Source",
@@ -279,6 +281,18 @@ window.__ModuleLoader__.load({
       },
       modalFoot: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 },
       iconWrap: { display: "inline-flex", alignItems: "center", justifyContent: "center" },
+      skillList: { display: "flex", flexDirection: "column", gap: 4, marginTop: 2 },
+      skillRow: { display: "flex", alignItems: "center", gap: 7, minWidth: 0 },
+      skillIcon: {
+        width: 17, height: 17, borderRadius: 5, flex: "none", overflow: "hidden",
+        background: "var(--dsw-alias-bg-layer-2)", display: "flex", alignItems: "center", justifyContent: "center",
+        fontSize: 9.5, fontWeight: 600, color: "var(--dsw-alias-label-tertiary)",
+      },
+      skillName: {
+        fontSize: 11.5, color: "var(--dsw-alias-label-secondary)", whiteSpace: "nowrap",
+        overflow: "hidden", textOverflow: "ellipsis",
+      },
+      skillPkg: { color: "var(--dsw-alias-label-tertiary)" },
     };
 
     /** Market/goods glyph. Sized by the sidebar's owner props. */
@@ -327,8 +341,33 @@ window.__ModuleLoader__.load({
     }
 
     /**
-     * One grid card: icon, name, meta, clamped description, and the action
-     * row. Clicking anywhere opens the detail overlay.
+     * One `package:skill` row. WorkBuddy skills carry their own icon; skills
+     * inside a ZCode plugin use the plugin's icon (the catalog has no
+     * per-sub-skill art for them).
+     * @param {{entry: object, skill: string}} props
+     */
+    function SkillRow({ entry, skill }) {
+      const iconId = entry.source === "workbuddy-skill" ? skill : entry.id;
+      return h("div", { style: S.skillRow },
+        h(EntryIcon, { source: entry.source, id: iconId, name: skill, style: S.skillIcon }),
+        h("span", { style: S.skillName },
+          h("span", { style: S.skillPkg }, `${entry.id}:`),
+          skill,
+        ),
+      );
+    }
+
+    /** The sub-skill rows of one installed package, when it has more than one. */
+    function SkillRows({ entry }) {
+      if (!entry.skills || entry.skills.length < 2) return null;
+      return h("div", { style: S.skillList },
+        entry.skills.map((skill) => h(SkillRow, { key: skill, entry, skill })),
+      );
+    }
+
+    /**
+     * One grid card: icon, name, meta, clamped description, sub-skill rows,
+     * and the action row. Clicking anywhere opens the detail overlay.
      * @param {{t: Function, entry: object, installed: boolean, busy: boolean,
      *          onAction: (kind: 'install'|'remove') => void, onOpen: () => void}} props
      */
@@ -349,6 +388,7 @@ window.__ModuleLoader__.load({
               : null,
         ),
         entry.description ? h("div", { style: S.desc }, entry.description) : null,
+        h(SkillRows, { entry }),
         h("div", { style: S.cardFoot },
           h("button", {
             type: "button",
@@ -411,6 +451,14 @@ window.__ModuleLoader__.load({
                 h("div", { style: S.chips }, entry.keywords.map((keyword) =>
                   h("span", { key: keyword, style: S.chip }, keyword),
                 )),
+              )
+            : null,
+          entry.skills?.length
+            ? h(React.Fragment, null,
+                h("div", { style: S.sectionTitle }, t("detail.includes")),
+                h("div", { style: { ...S.skillList, marginTop: 6 } },
+                  entry.skills.map((skill) => h(SkillRow, { key: skill, entry, skill })),
+                ),
               )
             : null,
           entry.examples?.length

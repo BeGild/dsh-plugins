@@ -121,6 +121,8 @@ await test('zcode skills-only plugin (github): install, disk, record, remove', a
   assert.equal(result.hooks, false)
   assert.deepEqual(result.servers, [])
   assert.ok(existsSync(join(SKILLS, 'commit', 'SKILL.md')), 'skill bundle on disk')
+  const commitSkill = readFileSync(join(SKILLS, 'commit', 'SKILL.md'), 'utf8')
+  assert.match(commitSkill, /^description: "\[github\] /m, 'sub-skill carries its package attribution')
   assert.ok(existsSync(join(STATE, 'plugins', 'github', 'github', 'skills', 'commit', 'SKILL.md')), 'plugin tree on disk')
 
   assert.ok((await recordOf('github'))?.skills.includes('commit'))

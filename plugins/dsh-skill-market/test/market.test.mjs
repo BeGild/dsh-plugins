@@ -22,6 +22,7 @@ import {
   parseZcodeMarketplace,
   pluginHooksDocument,
   pluginMcpConfig,
+  prefixSkillDescription,
   resolveSettings,
   searchEntries,
   skillDocument,
@@ -186,6 +187,16 @@ await test('a command file becomes a slash command whose body is the prompt', ()
   assert.equal(command.argumentHint, '[goal]')
   assert.equal(command.prompt, 'Use the skill.')
   assert.equal(isSkillName('Not A Name'), false)
+})
+
+await test('a sub-skill description gains its package attribution, idempotently', () => {
+  const original = '---\nname: watchlist\ndescription: Create and update watchlists.\n---\n\n# body\n'
+  const once = prefixSkillDescription(original, 'watch-positions')
+  assert.match(once, /^description: "\[watch-positions\] Create and update watchlists\."$/m)
+  assert.match(once, /# body/)
+  assert.equal(prefixSkillDescription(once, 'watch-positions'), once, 'second pass is a no-op')
+  const quoted = '---\nname: x\ndescription: Says "hi" quickly.\n---\n'
+  assert.match(prefixSkillDescription(quoted, 'p'), /^description: "\[p\] Says \\"hi\\" quickly\."$/m)
 })
 
 await test('a package skill with a legal frontmatter is kept verbatim', () => {

@@ -37,6 +37,7 @@ import {
   parseZcodeMarketplace,
   detailEntry,
   pluginHooksDocument,
+  prefixSkillDescription,
   pluginMcpConfig,
   resolveSettings,
   searchEntries,
@@ -500,6 +501,14 @@ export async function activatePlugin(ctx, settings, running, id, pluginDir, file
   const selected = packageSkillFiles(Object.keys(files))
   const skillFiles = {}
   for (const item of selected) skillFiles[item.to] = files[item.from]
+  // A multi-skill package prefixes each description with its attribution, so
+  // the '/' menu and the model's skill selection show where a skill came from.
+  if (selected.length > 1) {
+    for (const item of selected) {
+      if (!item.to.endsWith('SKILL.md')) continue
+      skillFiles[item.to] = prefixSkillDescription(textOf(files[item.from]), id)
+    }
+  }
   const skills = await writeBundles(settings.skillsDir, asBundles(id, skillFiles))
 
   const runtime = { commands: [], hooks: false, servers: [], skipped: [] }
