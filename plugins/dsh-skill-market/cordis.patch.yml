@@ -1,0 +1,20 @@
+# dsh-skill-market — install ZCode plugins and WorkBuddy skills into this profile.
+#
+# One tool, `skill_market`. A ZCode plugin installs its skills, registers its
+# slash commands, runs its command hooks through dsh-hooks-claude-code, and
+# connects each MCP server it declares through dsh-mcp-client. A WorkBuddy
+# skill installs as a bundle the default skill provider scans.
+#
+# A patch row replaces `config` wholesale. Restate every key you care about.
+#
+#   stateDir              records and unpacked plugins. Empty uses $DSH_HOME/skill-market.
+#   skillsDir             where skill bundles are written. Empty uses $DSH_HOME/skills.
+#   zcodeMarketplaceUrl
+#   workbuddySkillZipUrl
+#   requestTimeoutMs      one catalog download.
+#   maxResults            one search page.
+#   autoConnect           restart installed hooks and MCP servers on boot.
+#
+- insert:
+    - id: dsh-skill-market
+      name: dsh-skill-market
