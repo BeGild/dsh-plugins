@@ -116,57 +116,68 @@ window.__ModuleLoader__.load({
     }
 
     const M = {
+      // Mirrors the stock MenuView.module.css: absolutely positioned above the
+      // overlay anchor (drop-UP over the whole composer), full composer width.
       menu: {
-        boxSizing: "border-box", minWidth: 260, maxWidth: 460, maxHeight: 320, overflowY: "auto",
-        display: "flex", flexDirection: "column", gap: 2, padding: "6px 4px",
-        borderRadius: 12, border: "1px solid var(--dsw-alias-border-l2)",
-        background: "var(--dsw-alias-bg-layer-2)", boxShadow: "0 8px 24px rgba(0,0,0,.18)",
+        position: "absolute", bottom: "calc(100% + 4px)", left: 0, right: 0, zIndex: 100,
+        display: "flex", flexDirection: "column", padding: 4, maxHeight: 320, overflow: "hidden",
+        borderRadius: 20, border: 0,
+        background: "var(--dsw-specific-menu, var(--dsw-alias-bg-layer-2))",
+        boxShadow: "var(--dsw-elevation-prominent, 0 8px 24px rgba(0,0,0,.18))",
       },
-      crumbs: { display: "flex", alignItems: "center", gap: 2, padding: "2px 8px 4px", flexWrap: "wrap" },
+      viewport: { display: "flex", flexDirection: "column", minHeight: 0, overflowY: "auto" },
+      crumbs: {
+        display: "flex", alignItems: "center", gap: 2, flexWrap: "wrap", flex: "none",
+        padding: "4px 4px 6px", marginBottom: 2,
+        borderBottom: ".5px solid var(--dsw-alias-border-l1)",
+      },
       crumb: {
-        font: "inherit", fontSize: 11.5, padding: "1px 7px", borderRadius: 6, cursor: "pointer",
+        fontFamily: "inherit", fontSize: 12, lineHeight: "18px", maxWidth: "40%",
+        padding: "2px 6px", borderRadius: 6, cursor: "pointer",
         border: "none", background: "transparent", color: "var(--dsw-alias-label-tertiary)",
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
       },
       crumbCurrent: { color: "var(--dsw-alias-label-primary)", fontWeight: 600, cursor: "default" },
       crumbSep: { display: "inline-flex", color: "var(--dsw-alias-label-caption)", flex: "none" },
       title: {
-        fontSize: 11, fontWeight: 500, letterSpacing: ".04em", textTransform: "uppercase",
-        color: "var(--dsw-alias-label-caption)", padding: "6px 10px 2px",
+        color: "var(--dsw-alias-label-tertiary)", padding: "8px 10px",
+        fontSize: 12, lineHeight: "16px",
       },
       sectionTitle: {
-        fontSize: 11, color: "var(--dsw-alias-label-caption)", padding: "6px 10px 1px",
-        borderTop: "1px solid var(--dsw-alias-border-l1)", marginTop: 4,
+        minHeight: 26, color: "var(--dsw-alias-label-tertiary)", flex: "none",
+        padding: "6px 10px 2px", fontSize: 12, fontWeight: 500, lineHeight: "18px",
       },
+      sectionTitleSpaced: { marginTop: 4 },
       item: {
-        display: "flex", alignItems: "center", gap: 8, width: "100%", textAlign: "left",
-        font: "inherit", border: "none", background: "transparent", cursor: "pointer",
-        padding: "5px 10px", borderRadius: 8, color: "var(--dsw-alias-label-primary)",
+        display: "flex", alignItems: "center", gap: 8, width: "100%", minHeight: 40,
+        textAlign: "left", font: "inherit", fontSize: 14, lineHeight: "22px",
+        border: "none", background: "transparent", cursor: "pointer",
+        padding: "8px 10px", borderRadius: 10, color: "var(--dsw-alias-label-primary)",
       },
-      itemActive: { background: "var(--dsw-alias-interactive-bg-hover, var(--dsw-alias-bg-layer-3))" },
+      itemActive: { background: "var(--dsw-alias-interactive-bg-hover)" },
       itemIcon: {
         width: 16, height: 16, flex: "none", display: "inline-flex",
         alignItems: "center", justifyContent: "center", color: "var(--dsw-alias-label-tertiary)",
       },
       itemImg: { width: 16, height: 16, objectFit: "contain", display: "block", borderRadius: 3 },
       itemName: {
-        color: "var(--dsw-alias-label-primary)", flex: "none",
-        fontSize: "var(--dsh-content-font-size-secondary, 13px)",
+        color: "var(--dsw-alias-label-primary)", flex: "none", maxWidth: "40%",
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 14,
       },
       itemDesc: {
         color: "var(--dsw-alias-label-tertiary)", minWidth: 0, flex: 1,
-        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis",
-        fontSize: "var(--dsh-content-font-size-secondary, 13px)",
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 14,
       },
-      trailing: { display: "inline-flex", alignItems: "center", gap: 4, flex: "none" },
-      drillHintText: { fontSize: 11, color: "var(--dsw-alias-label-caption)" },
+      trailing: { display: "inline-flex", alignItems: "center", gap: 4, flex: "none", marginLeft: "auto" },
+      drillHintText: { color: "var(--dsw-alias-label-caption)", whiteSpace: "nowrap", fontSize: 11, lineHeight: "18px" },
       drillKey: {
-        font: "inherit", fontSize: 10.5, padding: "0 5px", borderRadius: 4, lineHeight: "16px",
-        border: "1px solid var(--dsw-alias-border-l2)", color: "var(--dsw-alias-label-tertiary)",
+        fontFamily: "inherit", fontSize: 11, lineHeight: "18px", padding: "0 5px", borderRadius: 4,
+        background: "var(--dsw-alias-interactive-bg-hover)",
+        color: "var(--dsw-alias-label-caption)",
       },
-      skeletonRow: { display: "flex", padding: "6px 10px" },
+      skeletonRow: { display: "flex", alignItems: "center", minHeight: 40, padding: "8px 10px", boxSizing: "border-box" },
       skeletonBar: {
-        height: 10, borderRadius: 999,
-        background: "var(--dsw-alias-interactive-bg-hover, var(--dsw-alias-bg-layer-3))",
+        height: 20, borderRadius: 4, background: "var(--dsw-alias-bg-skeleton, var(--dsw-alias-bg-layer-3))",
       },
     };
 
@@ -253,6 +264,7 @@ window.__ModuleLoader__.load({
         }),
         h("div", {
           role: "listbox",
+          style: M.viewport,
           "aria-label": t("suggestions.aria"),
           "aria-activedescendant": highlight !== null ? optionId(highlight.source, highlight.index) : undefined,
         },
@@ -287,7 +299,11 @@ window.__ModuleLoader__.load({
                 const index = row.originalIndex;
                 const active = highlight !== null && highlight.source === group.source && highlight.index === index;
                 if (row.section !== void 0 && row.section !== previousRow?.section) {
-                  children.push(h("div", { key: `s-${display}`, role: "presentation", style: M.sectionTitle }, row.section));
+                  children.push(h("div", {
+                    key: `s-${display}`,
+                    role: "presentation",
+                    style: children.length > 0 ? { ...M.sectionTitle, ...M.sectionTitleSpaced } : M.sectionTitle,
+                  }, row.section));
                 }
                 previousRow = row;
                 const description = isSkills ? attributionOf(item).description : item.description;
@@ -308,7 +324,7 @@ window.__ModuleLoader__.load({
                   item.icon !== undefined ? h("span", { style: M.itemIcon, "aria-hidden": true }, h(P.ReferenceIcon, { kind: item.icon, size: 16 })) : null,
                   h("span", { style: M.itemName }, item.name),
                   description !== undefined ? h("span", { style: M.itemDesc }, description) : null,
-                  item.drill === true ? h("span", { style: M.trailing },
+                  item.drill === true && active ? h("span", { style: M.trailing },
                     h("span", { style: M.drillHintText, "aria-hidden": true }, t("drill.hint")),
                     h("kbd", { style: M.drillKey, "aria-hidden": true }, t("drill.key")),
                     h("span", {
