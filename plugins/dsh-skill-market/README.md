@@ -58,3 +58,18 @@ node test/market.test.mjs
 ```
 
 `test/live.mjs` installs one real skill and one real plugin into a temporary directory and deletes them. It needs the network and is not part of the test script.
+
+`test/e2e.mjs` drives a **live profile server** through the panel's own routes, every source and component type, asserting the real effects:
+
+```sh
+node test/e2e.mjs http://127.0.0.1:PORT TOKEN
+```
+
+| Case | Package | What it proves |
+|---|---|---|
+| zcode skills-only | `github` | 10 skill bundles land in the scanned root; record, tree, and cleanup |
+| zcode full | `mimosa` | skill + 3 slash commands + hooks.json folded to `type:"command"` and rooted at the install |
+| zcode MCP | `disk-cleaner` | a stdio MCP server is spawned as a real child process and dies on removal (no EBUSY) |
+| workbuddy-skill | `airbnb` | verbatim skill with legal frontmatter; icon and examples in the API |
+
+Hook execution inside a real turn was verified by hand: with mimosa installed, a model turn that writes a file produces `hook/invoked`/`hook/result` pairs (`decision: "pass"`) in the session log at the UserPromptSubmit and Stop points.

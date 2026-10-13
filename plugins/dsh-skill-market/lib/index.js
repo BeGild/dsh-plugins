@@ -303,9 +303,12 @@ function createMarket(ctx, settings, commandsRef) {
       const id = requireId(args.id)
       const records = await readInstalled(settings.stateDir)
       const record = records[id]
+      // Stop the runtime FIRST: on Windows an MCP child or a hook process
+      // still holds the plugin tree, and removing the directory under it
+      // fails with EBUSY.
+      await stopRuntime(running, id)
       await removeBundles(settings.skillsDir, record?.skills ?? [])
       await removePluginTree(settings.pluginsDir, id)
-      await stopRuntime(running, id)
       delete records[id]
       await writeInstalled(settings.stateDir, records)
       return { message: `removed ${id}` }
@@ -433,7 +436,13 @@ function registerMarketApi(webServer, market, settings) {
       try {
         if (!settings.stateDir) throw new Error('no state directory; set stateDir or DSH_HOME')
         const records = await readInstalled(settings.stateDir)
-        const entries = Object.values(records).map(detailEntry)
+        const entries = Object.values(records).map((record) => ({
+          ...detailEntry(record),
+          skills: record.skills ?? [],
+          commands: record.commands ?? [],
+          hooks: record.hooks === true,
+          servers: record.servers ?? [],
+        }))
         json(res, 200, { ok: true, entries, total: entries.length })
       } catch (error) {
         json(res, 400, { ok: false, error: error.message })
@@ -542,6 +551,11 @@ export async function activatePlugin(ctx, settings, running, id, pluginDir, file
       ZCODE_PLUGIN_ROOT: root,
       CLAUDE_PLUGIN_DATA: root,
       ZCODE_PLUGIN_DATA: root,
+      // ZCode runs plugin servers from the open project; a DSH profile has no
+      // single project, so the plugin root stands in — the cwd rarely matters
+      // for a server that resolves its own assets relatively.
+      ZCODE_PROJECT_DIR: root,
+      CLAUDE_PROJECT_DIR: root,
     }
     for (const [key, server] of Object.entries(servers)) {
       const mapped = pluginMcpConfig(id, key, server, vars)

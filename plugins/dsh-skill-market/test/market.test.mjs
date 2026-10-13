@@ -164,6 +164,19 @@ await test('hooks are rewritten to the installed directory and empty hooks are i
   assert.equal(hasHooks({ hooks: {} }), false)
 })
 
+await test('a process-style ZCode hook is folded into a command string', () => {
+  const rewritten = pluginHooksDocument(
+    { hooks: { PreToolUse: [{ matcher: 'Edit|Write', hooks: [
+      { type: 'process', command: 'node', args: ['${CLAUDE_PLUGIN_ROOT}/hooks/run.cjs', 'scan.mjs', 'two words'] },
+    ] }] } },
+    '/opt/p',
+  )
+  const hook = rewritten.document.hooks.PreToolUse[0].hooks[0]
+  assert.equal(hook.type, 'command')
+  assert.equal(hook.args, undefined)
+  assert.equal(hook.command, 'node /opt/p/hooks/run.cjs scan.mjs "two words"')
+})
+
 await test('a command file becomes a slash command whose body is the prompt', () => {
   const command = parseCommandFile(
     '---\ndescription: Start the loop.\nargument-hint: "[goal]"\n---\n\nUse the skill.\n\n$ARGUMENTS\n',

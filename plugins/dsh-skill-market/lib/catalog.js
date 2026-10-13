@@ -130,17 +130,45 @@ export function pluginMcpConfig(id, serverKey, server, vars) {
 
 /**
  * The Claude Code hooks.json written for one installed plugin.
+ *
  * ZCode hooks are Claude Code command hooks with `${CLAUDE_PLUGIN_ROOT}`
- * already rewritten to the installed directory, which is what
- * `dsh-hooks-claude-code` runs inside the agent loop.
+ * rewritten to the installed directory, which is what
+ * `dsh-hooks-claude-code` runs inside the agent loop. ZCode also allows a
+ * `type: "process"` spelling with a separate argv array; the bridge only
+ * runs `type: "command"` strings, so those are folded into one quoted
+ * command line.
  */
 export function pluginHooksDocument(hooksJson, pluginRoot) {
   const document = hooksJson && typeof hooksJson === 'object' ? structuredClone(hooksJson) : { hooks: {} }
+  normaliseProcessHooks(document)
   const rewritten = fillPlaceholders(document, {
     CLAUDE_PLUGIN_ROOT: pluginRoot,
     ZCODE_PLUGIN_ROOT: pluginRoot,
   })
   return { document: rewritten.value, missing: rewritten.missing }
+}
+
+/** Fold `type:"process"` hook entries into the command-string form, in place. */
+function normaliseProcessHooks(document) {
+  const groups = document?.hooks ?? document
+  if (!groups || typeof groups !== 'object') return
+  for (const group of Object.values(groups)) {
+    if (!Array.isArray(group)) continue
+    for (const matcher of group) {
+      for (const hook of matcher?.hooks ?? []) {
+        if (hook?.type !== 'process') continue
+        const parts = [text(hook.command), ...(Array.isArray(hook.args) ? hook.args : []).map(String)]
+        hook.type = 'command'
+        hook.command = parts.filter(Boolean).map(quoteArg).join(' ')
+        delete hook.args
+      }
+    }
+  }
+}
+
+/** Quote one argv element only when whitespace or quotes force it. */
+function quoteArg(value) {
+  return /\s|^$|"/.test(value) ? `"${value.replace(/(["\\])/g, '\\$1')}"` : value
 }
 
 /** True when a hooks document declares at least one hook. */

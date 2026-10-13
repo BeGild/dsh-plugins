@@ -40,6 +40,10 @@ window.__ModuleLoader__.load({
       { id: "installed", key: "tab.installed" },
     ];
 
+    /** Secondary text size on the app's content scale; keeps the panel in step
+     *  with the harness type ramp when the user changes the content font. */
+    const SECONDARY = "var(--dsh-content-font-size-secondary, 13px)";
+
     const zh = {
       "panel.label": "技能市场",
       "panel.title": "技能市场",
@@ -174,11 +178,11 @@ window.__ModuleLoader__.load({
         display: "flex", flexDirection: "column", alignItems: "center",
       },
       column: { width: "100%", maxWidth: 920, display: "flex", flexDirection: "column", gap: 14 },
-      title: { margin: 0, fontSize: 17, fontWeight: 600 },
-      subtitle: { margin: "6px 0 0", fontSize: 13, lineHeight: "20px", color: "var(--dsw-alias-label-tertiary)" },
+      title: { margin: 0, fontSize: 15, fontWeight: 600 },
+      subtitle: { margin: "6px 0 0", fontSize: SECONDARY, lineHeight: "20px", color: "var(--dsw-alias-label-tertiary)" },
       tabs: { display: "flex", gap: 6, flexWrap: "wrap" },
       tab: {
-        padding: "6px 14px", borderRadius: 999, cursor: "pointer", font: "inherit", fontSize: 13,
+        padding: "6px 14px", borderRadius: 999, cursor: "pointer", font: "inherit", fontSize: SECONDARY,
         border: "1px solid var(--dsw-alias-border-l2)", background: "transparent",
         color: "var(--dsw-alias-label-secondary)",
       },
@@ -188,12 +192,12 @@ window.__ModuleLoader__.load({
       },
       searchForm: { display: "flex", gap: 8 },
       searchInput: {
-        flex: 1, minWidth: 0, padding: "8px 12px", borderRadius: 8, font: "inherit", fontSize: 13,
+        flex: 1, minWidth: 0, padding: "8px 12px", borderRadius: 8, font: "inherit", fontSize: SECONDARY,
         border: "1px solid var(--dsw-alias-border-l2)", background: "var(--dsw-alias-bg-layer-1)",
         color: "var(--dsw-alias-label-primary)",
       },
       button: {
-        padding: "6px 14px", borderRadius: 8, cursor: "pointer", font: "inherit", fontSize: 12.5,
+        padding: "6px 14px", borderRadius: 8, cursor: "pointer", font: "inherit", fontSize: SECONDARY,
         border: "1px solid var(--dsw-alias-border-l2)", background: "transparent",
         color: "var(--dsw-alias-label-primary)", flex: "none",
       },
@@ -219,8 +223,8 @@ window.__ModuleLoader__.load({
       },
       iconImg: { width: "100%", height: "100%", objectFit: "contain", display: "block" },
       headText: { minWidth: 0, flex: 1 },
-      name: { fontSize: 13, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
-      meta: { fontSize: 11.5, color: "var(--dsw-alias-label-tertiary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+      name: { fontSize: SECONDARY, fontWeight: 600, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+      meta: { fontSize: 11, color: "var(--dsw-alias-label-tertiary)", whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
       badge: {
         display: "inline-flex", alignItems: "center", padding: "1px 8px", borderRadius: 999, fontSize: 11,
         background: "var(--dsw-alias-bg-layer-2)", color: "var(--dsw-alias-label-tertiary)", flex: "none",
@@ -233,11 +237,11 @@ window.__ModuleLoader__.load({
       },
       cardFoot: { display: "flex", justifyContent: "space-between", alignItems: "center", gap: 8 },
       footLink: {
-        fontSize: 11.5, color: "var(--dsw-alias-link)", background: "none", border: "none",
+        fontSize: 11, color: "var(--dsw-alias-link)", background: "none", border: "none",
         padding: 0, cursor: "pointer", font: "inherit",
       },
-      status: { fontSize: 12.5, lineHeight: "18px", color: "var(--dsw-alias-label-tertiary)" },
-      error: { fontSize: 12.5, lineHeight: "18px", color: "var(--dsw-alias-state-danger-primary)" },
+      status: { fontSize: SECONDARY, lineHeight: "18px", color: "var(--dsw-alias-label-tertiary)" },
+      error: { fontSize: SECONDARY, lineHeight: "18px", color: "var(--dsw-alias-state-danger-primary)" },
       overlay: {
         position: "fixed", inset: 0, background: "rgba(0,0,0,0.45)", display: "flex",
         alignItems: "center", justifyContent: "center", padding: 24, zIndex: 60,
@@ -259,18 +263,18 @@ window.__ModuleLoader__.load({
         marginLeft: "auto", flex: "none", background: "none", border: "none", cursor: "pointer",
         fontSize: 18, lineHeight: 1, color: "var(--dsw-alias-label-tertiary)", padding: 4,
       },
-      modalDesc: { fontSize: 13, lineHeight: "20px", margin: "14px 0 0", color: "var(--dsw-alias-label-secondary)" },
-      facts: { display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: "5px 14px", margin: "14px 0 0", fontSize: 12.5 },
+      modalDesc: { fontSize: SECONDARY, lineHeight: "20px", margin: "14px 0 0", color: "var(--dsw-alias-label-secondary)" },
+      facts: { display: "grid", gridTemplateColumns: "auto minmax(0, 1fr)", gap: "5px 14px", margin: "14px 0 0", fontSize: SECONDARY },
       factLabel: { color: "var(--dsw-alias-label-tertiary)", whiteSpace: "nowrap" },
       factValue: { color: "var(--dsw-alias-label-secondary)", overflowWrap: "anywhere" },
       chips: { display: "flex", flexWrap: "wrap", gap: 6, margin: "10px 0 0" },
       chip: {
-        padding: "2px 9px", borderRadius: 999, fontSize: 11.5,
+        padding: "2px 9px", borderRadius: 999, fontSize: 11,
         background: "var(--dsw-alias-bg-layer-2)", color: "var(--dsw-alias-label-tertiary)",
       },
-      sectionTitle: { margin: "16px 0 0", fontSize: 12.5, fontWeight: 600, color: "var(--dsw-alias-label-secondary)" },
+      sectionTitle: { margin: "16px 0 0", fontSize: 12, fontWeight: 600, color: "var(--dsw-alias-label-secondary)" },
       example: {
-        margin: "6px 0 0", padding: "7px 10px", borderRadius: 8, fontSize: 12.5, lineHeight: "18px",
+        margin: "6px 0 0", padding: "7px 10px", borderRadius: 8, fontSize: 12, lineHeight: "18px",
         background: "var(--dsw-alias-bg-layer-2)", color: "var(--dsw-alias-label-secondary)",
       },
       modalFoot: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 },
