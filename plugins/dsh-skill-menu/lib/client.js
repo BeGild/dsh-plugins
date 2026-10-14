@@ -31,6 +31,31 @@ window.__ModuleLoader__.load({
     const React = require("react");
     const h = React.createElement;
 
+    // Primitives renamed every glyph for dsh 0.2 (IconXOutline16 ->
+    // IconXOutlineMedium/Regular; ReferenceIcon -> ReferenceIconRegular).
+    // Pick whichever export this runtime ships; a missing glyph renders as
+    // nothing instead of crashing the whole menu entry.
+    const pick = (...names) => {
+      for (const name of names) if (typeof P[name] === "function") return P[name];
+      return undefined;
+    };
+    const G = {
+      think: pick("IconThinkOutline16", "IconThinkOutlineMedium", "IconThinkOutlineRegular"),
+      enhance: pick("IconEnhanceOutline16", "IconEnhanceOutlineMedium", "IconEnhanceOutlineRegular"),
+      download: pick("IconDownloadOutline16", "IconDownloadOutlineMedium", "IconDownloadOutlineRegular"),
+      like: pick("IconLikeOutline16", "IconLikeOutlineMedium", "IconLikeOutlineRegular"),
+      goal: pick("IconGoalOutline16", "IconGoalOutlineMedium", "IconGoalOutlineRegular"),
+      settings: pick("IconSettingsOutline16", "IconSettingsOutlineMedium", "IconSettingsOutlineRegular"),
+      checklist: pick("IconChecklistOutline14", "IconChecklistOutlineMedium", "IconChecklistOutlineRegular"),
+      context: pick("IconContextInjectionOutline16", "IconContextInjectionOutlineMedium", "IconContextInjectionOutlineRegular"),
+      clock: pick("IconClockOutline16", "IconClockOutlineMedium", "IconClockOutlineRegular"),
+      question: pick("IconQuestionOutline14", "IconQuestionOutlineMedium", "IconQuestionOutlineRegular"),
+      cordis: pick("IconCordisPluginOutline14", "IconCordisPluginOutlineMedium", "IconCordisPluginOutlineRegular"),
+      chevronRight: pick("IconChevronRightOutline14", "IconChevronRightOutlineMedium", "IconChevronRightOutlineRegular"),
+      reference: pick("ReferenceIcon", "ReferenceIconRegular"),
+    };
+    const glyph = (component, size) => (component ? h(component, { size }) : null);
+
     /** Locale namespace; also the `locale` option of the overlay entry. */
     const NS = "skill-menu";
     /** The attribution prefix dsh-skill-market writes into sub-skills. */
@@ -108,7 +133,7 @@ window.__ModuleLoader__.load({
     }
 
     /** Design cap on the list height, matching the stock menu. */
-    const MAX_HEIGHT = 320;
+    const MAX_HEIGHT = 400;
 
     /** DOM id of one option row (the aria-activedescendant target). */
     function optionId(source, index) {
@@ -120,7 +145,7 @@ window.__ModuleLoader__.load({
       // overlay anchor (drop-UP over the whole composer), full composer width.
       menu: {
         position: "absolute", bottom: "calc(100% + 4px)", left: 0, right: 0, zIndex: 100,
-        display: "flex", flexDirection: "column", padding: 4, maxHeight: 320, overflow: "hidden",
+        display: "flex", flexDirection: "column", padding: 4, maxHeight: 400, overflow: "hidden", boxSizing: "border-box",
         borderRadius: 20, border: 0,
         background: "var(--dsw-specific-menu, var(--dsw-alias-bg-layer-2))",
         boxShadow: "var(--dsw-elevation-prominent, 0 8px 24px rgba(0,0,0,.18))",
@@ -149,24 +174,28 @@ window.__ModuleLoader__.load({
       },
       sectionTitleSpaced: { marginTop: 4 },
       item: {
-        display: "flex", alignItems: "center", gap: 8, width: "100%", minHeight: 40,
-        textAlign: "left", font: "inherit", fontSize: 14, lineHeight: "22px",
+        display: "flex", alignItems: "center", gap: 6, width: "100%", minHeight: 34,
+        textAlign: "left", font: "inherit", fontSize: 13, lineHeight: "20px",
         border: "none", background: "transparent", cursor: "pointer",
-        padding: "8px 10px", borderRadius: 10, color: "var(--dsw-alias-label-primary)",
+        padding: "6px 8px", borderRadius: "var(--dsw-radius-md, 8px)", color: "var(--dsw-alias-label-primary)",
       },
       itemActive: { background: "var(--dsw-alias-interactive-bg-hover)" },
       itemIcon: {
-        width: 16, height: 16, flex: "none", display: "inline-flex",
+        width: 14, height: 14, flex: "none", display: "inline-flex",
         alignItems: "center", justifyContent: "center", color: "var(--dsw-alias-label-tertiary)",
       },
-      itemImg: { width: 16, height: 16, objectFit: "contain", display: "block", borderRadius: 3 },
+      itemImg: { width: 14, height: 14, objectFit: "contain", display: "block", borderRadius: 3 },
       itemName: {
         color: "var(--dsw-alias-label-primary)", flex: "none", maxWidth: "40%",
-        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 14,
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 13,
       },
       itemDesc: {
-        color: "var(--dsw-alias-label-tertiary)", minWidth: 0, flex: 1,
-        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 14,
+        color: "var(--dsw-alias-label-tertiary)", minWidth: 0, flex: 1, textAlign: "right",
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 12, lineHeight: "18px",
+      },
+      itemAlias: {
+        color: "var(--dsw-alias-label-tertiary)", flex: "none", maxWidth: "20%",
+        whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis", fontSize: 12, lineHeight: "18px",
       },
       trailing: { display: "inline-flex", alignItems: "center", gap: 4, flex: "none", marginLeft: "auto" },
       drillHintText: { color: "var(--dsw-alias-label-caption)", whiteSpace: "nowrap", fontSize: 11, lineHeight: "18px" },
@@ -206,25 +235,81 @@ window.__ModuleLoader__.load({
       );
     }
 
-    /** Built-in host commands, by name — the stable six the host ships. */
+    /**
+     * The skill glyph, verbatim from WorkBuddy's Lucide table (`hammer`, 24×24):
+     * handle, strike face, head. Their UI marks every skill with it; ours now
+     * does the same for skills without a package icon.
+     */
+    function HammerGlyph() {
+      return h("svg", {
+        width: 14, height: 14, viewBox: "0 0 24 24",
+        fill: "none", stroke: "currentColor", strokeWidth: 1.6,
+        strokeLinecap: "round", strokeLinejoin: "round", "aria-hidden": true,
+      },
+        h("path", { d: "m15 12-9.373 9.373a1 1 0 0 1-3.001-3L12 9" }),
+        h("path", { d: "m18 15 4-4" }),
+        h("path", { d: "m21.5 11.5-1.914-1.914A2 2 0 0 1 19 8.172v-.344a2 2 0 0 0-.586-1.414l-1.657-1.657A6 6 0 0 0 12.516 3H9l1.243 1.243A6 6 0 0 1 12 8.485V10l2 2h1.172a2 2 0 0 1 1.414.586L18.5 14.5" }),
+      );
+    }
+
+    /** Built-in host commands, by name. */
     const COMMAND_ICONS = {
-      compact: () => h(P.IconArchiveOutline20, { size: 16 }),
-      export: () => h(P.IconDownloadOutline16, { size: 16 }),
-      feedback: () => h(P.IconLikeOutline16, { size: 16 }),
-      goal: () => h(P.IconGoalOutline16, { size: 16 }),
-      permission: () => h(P.IconSettingsOutline16, { size: 16 }),
-      plan: () => h(P.IconChecklistOutline14, { size: 16 }),
+      model: () => glyph(G.think, 16),
+      compact: () => glyph(G.enhance, 16),
+      export: () => glyph(G.download, 16),
+      feedback: () => glyph(G.like, 16),
+      goal: () => glyph(G.goal, 16),
+      permission: () => glyph(G.settings, 16),
+      plan: () => glyph(G.checklist, 14),
+      context: () => glyph(G.context, 16),
+      undo: () => glyph(G.clock, 16),
+      rewind: () => glyph(G.clock, 16),
+      btw: () => glyph(G.question, 14),
     };
     /** Fallbacks so every row keeps its leading glyph slot. */
-    const COMMAND_DEFAULT = () => h(P.IconCodeOutline16, { size: 16 });
-    const SKILL_DEFAULT = () => h(P.IconSkillOutline16, { size: 16 });
+    const COMMAND_DEFAULT = () => glyph(G.cordis, 14);
+    const SKILL_DEFAULT = HammerGlyph;
 
-    /** The leading glyph of one row: marketplace art, a mapped builtin, or a default. */
+    /**
+     * Commands contributed by a market-installed plugin map back to that
+     * plugin's icon (e.g. watch-positions's /events renders the plugin's
+     * marketplace art, matching its skill section). Populated once from
+     * dsh-skill-market's installed records; without that plugin the map stays
+     * empty and such commands fall to the plugin glyph.
+     */
+    const commandPackages = new Map();
+    try {
+      fetch("/skill-market/api/installed", { headers: { Accept: "application/json" } })
+        .then((res) => (res.ok ? res.json() : null))
+        .then((body) => {
+          if (!body?.ok) return;
+          for (const record of body.entries ?? []) {
+            for (const command of record.commands ?? []) commandPackages.set(command, record.id);
+          }
+        })
+        .catch(() => {});
+    } catch { /* offline hosts keep the empty map */ }
+
+    /** The leading glyph of one row: host face art, marketplace art, a mapped builtin, or a default. */
     function RowGlyph({ group, item, pkg }) {
       if (pkg !== undefined) return h(PackageGlyph, { pkg });
+      // dsh 0.2 candidates carry their own icon: a component (the host's
+      // builtin faces) or a string reference kind (older groups).
+      if (item.icon !== undefined) {
+        const art = typeof item.icon === "string"
+          ? glyph(G.reference, 14)
+          : h(item.icon, { size: 14 });
+        return h("span", { style: M.itemIcon, "aria-hidden": true }, art);
+      }
       if (group === "command") {
-        return h("span", { style: M.itemIcon, "aria-hidden": true },
-          (COMMAND_ICONS[item.name] ?? COMMAND_DEFAULT)());
+        const pluginPkg = commandPackages.get(item.name);
+        if (pluginPkg !== undefined) return h(PackageGlyph, { pkg: pluginPkg });
+        const make = COMMAND_ICONS[item.name] ?? COMMAND_DEFAULT;
+        return h("span", { style: M.itemIcon, "aria-hidden": true }, make ? make() : null);
+      }
+      if (group === "context") {
+        const make = COMMAND_ICONS[item.name];
+        return h("span", { style: M.itemIcon, "aria-hidden": true }, make ? make() : null);
       }
       if (group === "skill") {
         return h("span", { style: M.itemIcon, "aria-hidden": true }, SKILL_DEFAULT());
@@ -238,7 +323,9 @@ window.__ModuleLoader__.load({
      * @param {{menu: object, headers: object, onPick: Function, onCrumb: Function,
      *          onHover: Function, onDismiss: Function, t: Function}} props
      */
-    function SlashMenuView({ menu, headers, onPick, onCrumb, onHover, onDismiss, t }) {
+    function SlashMenuView(props) {
+      if (!props || props.menu === undefined) return null
+      const { menu, headers, onPick, onCrumb, onHover, onDismiss, t } = props
       const state = React.useSyncExternalStore(
         (fn) => menu.subscribe(fn),
         () => menu.getSnapshot(),
@@ -273,7 +360,7 @@ window.__ModuleLoader__.load({
           return h("nav", { key: `crumbs-${group.source}`, style: M.crumbs, "aria-label": t("crumbs.aria") },
             trail.map((crumb, index) =>
               h(React.Fragment, { key: `${index}-${crumb.value}` },
-                index > 0 ? h("span", { style: M.crumbSep, "aria-hidden": true }, h(P.IconChevronRightOutline14, {})) : null,
+                index > 0 ? h("span", { style: M.crumbSep, "aria-hidden": true }, glyph(G.chevronRight, 14)) : null,
                 h("button", {
                   type: "button",
                   style: { ...M.crumb, ...(crumb.current === true ? M.crumbCurrent : {}) },
@@ -346,11 +433,11 @@ window.__ModuleLoader__.load({
                   },
                   onMouseMove: active ? undefined : () => onHover(group.source, index),
                 },
-                  row.pkg !== undefined || group.source === "command" || group.source === "skill"
-                    ? h(RowGlyph, { group: group.source, item, pkg: row.pkg })
+                  h(RowGlyph, { group: group.source, item, pkg: row.pkg }),
+                  h("span", { style: M.itemName }, item.label ?? item.name),
+                  item.label !== undefined && item.label.toLowerCase() !== item.name.toLowerCase()
+                    ? h("span", { style: M.itemAlias }, item.name)
                     : null,
-                  item.icon !== undefined ? h("span", { style: M.itemIcon, "aria-hidden": true }, h(P.ReferenceIcon, { kind: item.icon, size: 16 })) : null,
-                  h("span", { style: M.itemName }, item.name),
                   description !== undefined ? h("span", { style: M.itemDesc }, description) : null,
                   item.drill === true && active ? h("span", { style: M.trailing },
                     h("span", { style: M.drillHintText, "aria-hidden": true }, t("drill.hint")),
@@ -364,7 +451,7 @@ window.__ModuleLoader__.load({
                         ev.stopPropagation();
                         onPick(group.source, index, "drill");
                       },
-                    }, h(P.IconChevronRightOutline14, {})),
+                    }, glyph(G.chevronRight, 14)),
                   ) : null,
                 ));
               }
@@ -385,30 +472,38 @@ window.__ModuleLoader__.load({
      * @param {import('@deepseek-ai/cordis').Context} ctx - client root context.
      */
     function apply(ctx) {
-      ctx.effect(() => ctx.locale.register(NS, { zh, en }), "skill-menu: dictionaries");
+      const diag = (stage, err) => {
+        try { (window.__smDiag = window.__smDiag || []).push(`${stage}: ${err && (err.stack || err.message || String(err))}`) } catch (e) {}
+      }
+      try {
+        ctx.effect(() => ctx.locale.register(NS, { zh, en }), "skill-menu: dictionaries");
 
-      ctx.inject(["slots"], (scope) => {
-        scope.slots.inject("conversation.input.overlay", () => scope.slots.register({
-          name: "conversation.input.overlay",
-          id: "slash-menu",
-          order: 0,
-          locale: NS,
-          inject: (sessionId) => {
-            const actx = ctx.sessions?.scope?.(sessionId);
-            const inputTriggers = ctx.get("inputTriggers");
-            if (!actx || !inputTriggers) return {};
-            const controller = inputTriggers.sessionOf(actx);
-            return {
-              menu: controller.menu,
-              headers: controller.headers,
-              onPick: (source, index, action) => controller.pick(source, index, action),
-              onCrumb: (source, index) => controller.pickCrumb(source, index),
-              onHover: (source, index) => controller.hover(source, index),
-              onDismiss: () => controller.dismiss(),
-            };
-          },
-        }, SlashMenuView));
-      })
+        ctx.inject(["slots"], (scope) => {
+          scope.slots.inject("conversation.input.overlay", () => scope.slots.register({
+            name: "conversation.input.overlay",
+            id: "slash-menu",
+            order: 0,
+            locale: NS,
+            inject: (sessionId) => {
+              try {
+                const actx = ctx.sessions?.scope?.(sessionId)
+                const inputTriggers = ctx.get("inputTriggers")
+                diag("faces", `sid=${sessionId} actx=${actx && typeof actx} svc=${inputTriggers && typeof inputTriggers}`)
+                if (!actx || !inputTriggers) return {}
+                const controller = inputTriggers.sessionOf(actx)
+                return {
+                  menu: controller.menu,
+                  headers: controller.headers,
+                  onPick: (source, index, action) => controller.pick(source, index, action),
+                  onCrumb: (source, index) => controller.pickCrumb(source, index),
+                  onHover: (source, index) => controller.hover(source, index),
+                  onDismiss: () => controller.dismiss(),
+                }
+              } catch (e) { diag("inject", e); return {} }
+            },
+          }, SlashMenuView));
+        })
+      } catch (e) { diag("apply", e) }
     }
 
     exports.apply = apply;

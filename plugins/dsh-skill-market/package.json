@@ -1,6 +1,6 @@
 {
   "name": "dsh-skill-market",
-  "version": "0.5.0",
+  "version": "0.5.1",
   "description": "A skill-market web panel (icon grid, detail sheets, one-click install) and skill_market tool that install ZCode plugins and WorkBuddy skills into a DeepSeek Harness profile, running a plugin's skills, slash commands, command hooks, and MCP servers.",
   "type": "module",
   "main": "lib/index.js",
@@ -24,8 +24,8 @@
   ],
   "peerDependencies": {
     "@deepseek-ai/cordis": "^4.0.1",
-    "@deepseek-ai/dsh-mcp-client": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0",
-    "@deepseek-ai/dsh-tools": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0",
+    "@deepseek-ai/dsh-mcp-client": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0 || >=0.2.0-rc.1 <0.3.0-0",
+    "@deepseek-ai/dsh-tools": ">=0.0.1-rc.1 <0.1.0 || >=0.1.0-rc.1 <0.2.0-0 || >=0.2.0-rc.1 <0.3.0-0",
     "@deepseek-ai/schemastery": "^3.18.1"
   },
   "devDependencies": {
