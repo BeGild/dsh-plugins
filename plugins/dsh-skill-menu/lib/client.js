@@ -206,6 +206,32 @@ window.__ModuleLoader__.load({
       );
     }
 
+    /** Built-in host commands, by name — the stable six the host ships. */
+    const COMMAND_ICONS = {
+      compact: () => h(P.IconArchiveOutline20, { size: 16 }),
+      export: () => h(P.IconDownloadOutline16, { size: 16 }),
+      feedback: () => h(P.IconLikeOutline16, { size: 16 }),
+      goal: () => h(P.IconGoalOutline16, { size: 16 }),
+      permission: () => h(P.IconSettingsOutline16, { size: 16 }),
+      plan: () => h(P.IconChecklistOutline14, { size: 16 }),
+    };
+    /** Fallbacks so every row keeps its leading glyph slot. */
+    const COMMAND_DEFAULT = () => h(P.IconCodeOutline16, { size: 16 });
+    const SKILL_DEFAULT = () => h(P.IconSkillOutline16, { size: 16 });
+
+    /** The leading glyph of one row: marketplace art, a mapped builtin, or a default. */
+    function RowGlyph({ group, item, pkg }) {
+      if (pkg !== undefined) return h(PackageGlyph, { pkg });
+      if (group === "command") {
+        return h("span", { style: M.itemIcon, "aria-hidden": true },
+          (COMMAND_ICONS[item.name] ?? COMMAND_DEFAULT)());
+      }
+      if (group === "skill") {
+        return h("span", { style: M.itemIcon, "aria-hidden": true }, SKILL_DEFAULT());
+      }
+      return null;
+    }
+
     /**
      * The '/' candidate menu overlay. Renders the trigger service's menu
      * store; see the module doc for the section/icon addition.
@@ -320,7 +346,9 @@ window.__ModuleLoader__.load({
                   },
                   onMouseMove: active ? undefined : () => onHover(group.source, index),
                 },
-                  row.pkg !== undefined ? h(PackageGlyph, { pkg: row.pkg }) : null,
+                  row.pkg !== undefined || group.source === "command" || group.source === "skill"
+                    ? h(RowGlyph, { group: group.source, item, pkg: row.pkg })
+                    : null,
                   item.icon !== undefined ? h("span", { style: M.itemIcon, "aria-hidden": true }, h(P.ReferenceIcon, { kind: item.icon, size: 16 })) : null,
                   h("span", { style: M.itemName }, item.name),
                   description !== undefined ? h("span", { style: M.itemDesc }, description) : null,

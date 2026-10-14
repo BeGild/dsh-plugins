@@ -17,7 +17,7 @@ With that order its overlay entry lands first and owns the cell; the stock `Menu
 ## What the view renders
 
 - **Sections** — skills whose description starts with a `[package]` attribution (the prefix `dsh-skill-market` writes when a multi-skill package installs) group under their package, in first-seen order; everything else falls into one local section. Pick, hover, and highlight keep speaking the service's original item indices, so re-ordering is display-only.
-- **Icons** — each sectioned candidate renders its package's marketplace icon (`/skill-market/api/icon`, trying the ZCode manifest proxy then the WorkBuddy zip proxy; both served by dsh-skill-market's host half). Without that plugin installed every attempt 404s and rows render without art.
+- **Icons** — each sectioned candidate renders its package's marketplace icon (`/skill-market/api/icon`, trying the ZCode manifest proxy then the WorkBuddy zip proxy; both served by dsh-skill-market's host half). Without that plugin installed every attempt 404s and rows render without art. The built-in host commands carry mapped glyphs from the official icon set (compact→archive, export→download, feedback→like, goal→goal, permission→settings, plan→checklist; anything else falls back to the code glyph), and local skills show the stock skill outline so every row keeps its leading glyph slot.
 - **Parity** — combobox pattern (focus stays in the textarea, rows are mousedown-picked, highlight exposed via `aria-activedescendant`), breadcrumb header above the scrolling list, skeleton rows on first load, and the drill affordance for sources that refine.
 
 ## The ordering dependency
