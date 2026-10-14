@@ -332,7 +332,7 @@ await test('the client registers matching dictionaries and both reachability slo
     return stubReact()
   })
   assert.deepEqual(required, ['react'])
-  assert.deepEqual(exposed.inject, ['slots', 'locale'])
+  assert.deepEqual([...exposed.inject].sort(), ['locale', 'remote', 'remote.skills', 'sessions', 'slots'])
 
   const seen = { locale: {}, slots: [] }
   const ctx = {
@@ -345,11 +345,16 @@ await test('the client registers matching dictionaries and both reachability slo
       inject(seat, register) { seen.slots.push({ seat, register }) },
       register: (options, component) => ({ options, component }),
     },
+    // No remote.skills/sessions services on this stub, so the '/' source
+    // half of apply stays dormant; get() only exists to prove it would.
+    get(name) { return undefined },
   }
   exposed.apply(ctx)
   const dicts = seen.locale['skill-market']
   assert.ok(dicts, 'dictionaries registered under the plugin namespace')
   assert.deepEqual(Object.keys(dicts.zh).sort(), Object.keys(dicts.en).sort())
+  // The stub ctx has no remote.skills/sessions/inputTriggers, so the '/'
+  // source half stays dormant and only the two panel slots register.
   assert.deepEqual(seen.slots.map((entry) => entry.seat).sort(), ['main', 'sidebar.panellist'])
   for (const entry of seen.slots) {
     const { options, component } = entry.register()
@@ -365,6 +370,30 @@ await test('the client fetches exactly the routes the host registers', async () 
   const served = new Set([...host.matchAll(/API_BASE}\/(\w+)/g)].map((m) => m[1]))
   assert.deepEqual(fetched, served)
   assert.deepEqual([...fetched].sort(), ['icon', 'install', 'installed', 'remove', 'search'])
+})
+
+await test('the wide matcher finds a whole package by fragment', async () => {
+  const registrations = await loadClientBundle()
+  const mod = registrations[0].factory((id) => {
+    if (id !== 'react') throw new Error(`unexpected require("${id}")`)
+    return stubReact()
+  })
+  const skills = [
+    { name: 'watchlist', description: '[watch-positions] Manage watchlists.' },
+    { name: 'close-recap', description: '[watch-positions] After-close recap.' },
+    { name: 'event-monitor', description: '[watch-positions] Scan events.' },
+    { name: 'xlsx-author', description: '[watch-positions] Build workbooks.' },
+    { name: 'agent-browser', description: 'Browser automation CLI.' },
+  ]
+  const hits = mod.matchSkills(skills, 'w')
+  assert.deepEqual(hits.map((s) => s.name).sort(), [
+    'agent-browser', 'close-recap', 'event-monitor', 'watchlist', 'xlsx-author',
+  ], '/w reaches every skill of the package plus name subsequence hits')
+  const ordered = mod.matchSkills(skills, 'wat')
+  assert.equal(ordered[0].name, 'watchlist', 'name-prefix hits rank first')
+  assert.deepEqual(mod.matchSkills(skills, 'close-recap').map((s) => s.name), ['close-recap'])
+  assert.equal(mod.matchSkills(skills, '').length, 5, 'empty query keeps the catalog')
+  assert.deepEqual(mod.matchSkills(skills, 'zzz'), [], 'no match yields nothing')
 })
 
 console.log(`\n${passed} passed, ${failed} failed`)

@@ -5,6 +5,13 @@
 # connects each MCP server it declares through dsh-mcp-client. A WorkBuddy
 # skill installs as a bundle the default skill provider scans.
 #
+# This bundle also replaces the stock '/' skill source: its browser half
+# registers a same-named source whose matcher reaches the `[package]`
+# attribution and the description text, not just the name (the stock
+# rankByName drops a whole installed package on `/w`). The disable below
+# lands because this bundle loads AFTER dsh-web-app; keep it there.
+# Removing this bundle restores the stock source untouched.
+#
 # A patch row replaces `config` wholesale. Restate every key you care about.
 #
 #   stateDir              records and unpacked plugins. Empty uses $DSH_HOME/skill-market.
@@ -15,6 +22,9 @@
 #   maxResults            one search page.
 #   autoConnect           restart installed hooks and MCP servers on boot.
 #
+- id: ui-skill
+  disabled: true
+
 - insert:
     - id: dsh-skill-market
       name: dsh-skill-market

@@ -51,6 +51,7 @@ window.__ModuleLoader__.load({
       "tab.zcode": "ZCode 插件",
       "tab.workbuddy": "WorkBuddy 技能",
       "tab.installed": "已安装",
+      "menu.userOnly": "仅用户",
       "search.placeholder": "搜索名称或描述…",
       "search.action": "搜索",
       "state.loading": "加载中…",
@@ -83,6 +84,7 @@ window.__ModuleLoader__.load({
       "tab.zcode": "ZCode plugins",
       "tab.workbuddy": "WorkBuddy skills",
       "tab.installed": "Installed",
+      "menu.userOnly": "User only",
       "search.placeholder": "Search name or description…",
       "search.action": "Search",
       "state.loading": "Loading…",
@@ -619,9 +621,58 @@ window.__ModuleLoader__.load({
       );
     }
 
+    /** The `[package]` attribution prefix dsh-skill-market installs write. */
+    const PACKAGE_PREFIX = /^\[([^\]]+)\]/;
+
+    /** True when every query character appears in name order. */
+    function isSubsequence(name, query) {
+      if (query.length > name.length) return false;
+      let at = 0;
+      for (const char of query) {
+        at = name.indexOf(char, at);
+        if (at < 0) return false;
+        at += 1;
+      }
+      return true;
+    }
+
     /**
-     * Browser-side plugin body: dictionaries, then the two slots that make the
-     * entry reachable — the sidebar row and the main cell it dispatches.
+     * Wide '/' matcher for installed skills.
+     *
+     * The stock rankByName matches the NAME only as an ordered subsequence,
+     * so `/w` loses every skill whose name lacks a "w" — an entire installed
+     * package's worth (close-recap, event-monitor, ...). This matcher also
+     * hits the `[package]` attribution and the description text: name-prefix
+     * hits rank first, then name subsequence, then package/description
+     * substring, ties broken by catalog order.
+     * @param {{name: string, description?: string}[]} skills - catalog rows.
+     * @param {string} rawQuery - the text typed after the trigger.
+     * @returns the matched skills in ranked order; a copy for an empty query.
+     */
+    function matchSkills(skills, rawQuery) {
+      const query = String(rawQuery || "").toLowerCase();
+      if (query === "") return [...skills];
+      const ranked = [];
+      skills.forEach((skill, index) => {
+        const name = String(skill.name || "").toLowerCase();
+        const description = String(skill.description || "").toLowerCase();
+        const pkg = (PACKAGE_PREFIX.exec(description) || [])[1] || "";
+        let tier = 0;
+        if (name.startsWith(query)) tier = 3;
+        else if (isSubsequence(name, query)) tier = 2;
+        else if (pkg.includes(query) || description.includes(query)) tier = 1;
+        else return;
+        ranked.push({ skill, index, tier });
+      });
+      ranked.sort((a, b) => b.tier - a.tier || a.index - b.index);
+      return ranked.map((match) => match.skill);
+    }
+
+    /**
+     * Browser-side plugin body: dictionaries, the two panel slots, and the
+     * '/' skill source. The source replaces the stock one — this bundle's
+     * patch disables `ui-skill`, which lands only because this bundle loads
+     * after dsh-web-app — so the wide matcher above drives the menu.
      * @param {import('@deepseek-ai/cordis').Context} ctx - client root context.
      */
     function apply(ctx) {
@@ -641,10 +692,63 @@ window.__ModuleLoader__.load({
         locale: NS,
         inject: () => ({ api: API }),
       }, MarketPanel));
+
+      // '/' skill source with the wide matcher; mirrors the stock source's
+      // protocol (warm, lexicon, subagent suppression, pick text). The view
+      // half of dsh-skill-menu keeps rendering rows regardless of source.
+      const skillsService = ctx.remote?.skills;
+      const sessions = ctx.sessions;
+      const inputTriggers = ctx.get("inputTriggers");
+      if (skillsService && sessions && inputTriggers) {
+        const fetches = new Map();
+        const fetchCatalog = (sessionId) => {
+          const existing = fetches.get(sessionId);
+          if (existing) return existing.promise;
+          const entry = { abort: new AbortController() };
+          entry.promise = skillsService.list({ sessionId }, entry.abort.signal).then((result) => {
+            if (!result.ok) throw new Error(`skills/list failed: ${result.error?.code}`);
+            entry.settled = result.value.skills;
+            return entry.settled;
+          });
+          fetches.set(sessionId, entry);
+          entry.promise.catch(() => {
+            if (fetches.get(sessionId) === entry) fetches.delete(sessionId);
+          });
+          return entry.promise;
+        };
+        ctx.effect(() => inputTriggers.registerSource({
+          trigger: "/",
+          name: "skill",
+          order: 2,
+          async candidates(session, req) {
+            if (sessions.subagentAddress(session.sessionId) !== undefined) return [];
+            const skills = await fetchCatalog(session.sessionId);
+            if (req.signal.aborted) return [];
+            return matchSkills(skills, req.query).map((skill) => ({
+              name: skill.name,
+              description: skill.modelInvocable === false
+                ? `${t("menu.userOnly")} · ${skill.description}`
+                : skill.description,
+            }));
+          },
+          warm(session) {
+            if (sessions.subagentAddress(session.sessionId) === undefined) {
+              fetchCatalog(session.sessionId).catch(() => {});
+            }
+          },
+          lexicon(session) {
+            return fetches.get(session.sessionId)?.settled?.map((skill) => skill.name);
+          },
+          onPick({ candidate }) {
+            return { text: `/${candidate.name} ` };
+          },
+        }), "skill-market: slash source");
+      }
     }
 
     exports.apply = apply;
-    exports.inject = ["slots", "locale"];
+    exports.matchSkills = matchSkills;
+    exports.inject = ["slots", "locale", "remote", "remote.skills", "sessions"];
     return module.exports;
   },
 });
