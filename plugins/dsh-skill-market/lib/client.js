@@ -184,7 +184,7 @@ window.__ModuleLoader__.load({
         background: "var(--dsw-alias-bg-base)", color: "var(--dsw-alias-label-primary)", font: "inherit",
         display: "flex", flexDirection: "column", alignItems: "center",
       },
-      column: { width: "100%", maxWidth: 920, display: "flex", flexDirection: "column", gap: 14 },
+      column: { width: "100%", display: "flex", flexDirection: "column", gap: 14 },
       title: { margin: 0, fontSize: 15, fontWeight: 600 },
       subtitle: { margin: "6px 0 0", fontSize: SECONDARY, lineHeight: "20px", color: "var(--dsw-alias-label-tertiary)" },
       tabs: { display: "flex", gap: 6, flexWrap: "wrap" },
@@ -215,7 +215,7 @@ window.__ModuleLoader__.load({
       buttonBusy: { opacity: 0.6, cursor: "default" },
       grid: {
         display: "grid", gap: 10,
-        gridTemplateColumns: "repeat(auto-fill, minmax(232px, 1fr))",
+        gridTemplateColumns: "repeat(auto-fill, minmax(210px, 1fr))",
       },
       card: {
         padding: "12px 12px 10px", borderRadius: 12, border: "1px solid var(--dsw-alias-border-l2)",
