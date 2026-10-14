@@ -62,6 +62,7 @@ window.__ModuleLoader__.load({
       "action.remove": "卸载",
       "action.removing": "卸载中…",
       "action.detail": "详情",
+      "action.more": "加载更多",
       "action.close": "关闭",
       "badge.installed": "已安装",
       "badge.listedOnly": "仅展示",
@@ -95,6 +96,7 @@ window.__ModuleLoader__.load({
       "action.remove": "Remove",
       "action.removing": "Removing…",
       "action.detail": "Details",
+      "action.more": "Load more",
       "action.close": "Close",
       "badge.installed": "Installed",
       "badge.listedOnly": "Listed only",
@@ -144,9 +146,10 @@ window.__ModuleLoader__.load({
      */
     const API = Object.freeze({
       /** @returns {Promise<{entries: object[], total: number, truncated: boolean}>} one result page, or throws. */
-      async search(source, query) {
+      async search(source, query, limit) {
         const params = new URLSearchParams({ source });
         if (query) params.set("q", query);
+        if (limit) params.set("limit", String(limit));
         const body = await getJson(`${BASE}/search?${params.toString()}`);
         if (!body?.ok) throw new Error(body?.error || "search failed");
         return body;
@@ -503,6 +506,9 @@ window.__ModuleLoader__.load({
       const [note, setNote] = React.useState("");
       const [selected, setSelected] = React.useState(null);
       const [nonce, setNonce] = React.useState(0);
+      // Page size for the visible list; 0 = the server's default page. Reset
+      // whenever the tab or query changes, grown by the load-more button.
+      const [limit, setLimit] = React.useState(0);
 
       React.useEffect(() => {
         let alive = true;
@@ -511,7 +517,9 @@ window.__ModuleLoader__.load({
         setEntries(null);
         (async () => {
           try {
-            const page = tab === "installed" ? await api.installed() : await api.search(tab, query.trim());
+            const page = tab === "installed"
+              ? await api.installed()
+              : await api.search(tab, query.trim(), limit || undefined);
             if (!alive) return;
             setEntries(page.entries ?? []);
             setTotal(page.total ?? (page.entries ?? []).length);
@@ -525,7 +533,7 @@ window.__ModuleLoader__.load({
           }
         })();
         return () => { alive = false; };
-      }, [tab, nonce, api, query]);
+      }, [tab, nonce, api, query, limit]);
 
       React.useEffect(() => {
         let alive = true;
@@ -606,6 +614,17 @@ window.__ModuleLoader__.load({
                   onAction: (kind) => run(kind, entry.id),
                   onOpen: () => setSelected(entry),
                 })),
+                tab !== "installed" && total > entries.length
+                  ? h("button", {
+                      key: "load-more",
+                      type: "button",
+                      style: {
+                        ...S.button, ...S.buttonPrimary, ...S.buttonBusy,
+                        gridColumn: "1 / -1", cursor: "pointer", opacity: 1,
+                      },
+                      onClick: () => setLimit((current) => (current || entries.length) + 30),
+                    }, `${t("action.more")} · ${entries.length} / ${total}`)
+                  : null,
               ),
         ),
         selected
