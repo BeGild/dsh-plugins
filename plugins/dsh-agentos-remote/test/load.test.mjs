@@ -9,7 +9,7 @@
  * rather than on a user's machine at connect time.
  */
 import assert from 'node:assert/strict'
-import { existsSync, readFileSync } from 'node:fs'
+import { existsSync, readFileSync, readdirSync } from 'node:fs'
 import path from 'node:path'
 import { fileURLToPath } from 'node:url'
 import {
@@ -101,11 +101,16 @@ check('exports the cordis plugin surface', () => {
   assert.equal(typeof registerWorkspace, 'function')
 })
 
-check('the service injects the web surface it serves the login page on', () => {
-  // Documented behaviour, not an accident: the QR login page rides the Web
-  // surface, so `dsh web` (or any profile carrying webServer) is required.
-  // Agent services are NOT injected — they are read when a task arrives.
-  assert.deepEqual(AgentosRemoteService.inject, ['webServer'])
+check('the service injects the surfaces it cannot read lazily', () => {
+  assert.deepEqual(AgentosRemoteService.inject, [
+    'webServer',
+    'agents',
+    'sessionController',
+    'sessionQuery',
+    'workspaceRegistry',
+    'workspaceController',
+  ])
+  assert.equal(typeof AgentosRemoteService.prototype.forwardSessionEvent, 'function')
 })
 
 // ------------------------------------------------------------- disabled path
@@ -222,6 +227,39 @@ check('the lazily-imported runtime dependencies are declared', () => {
   assert.ok(pkg.dependencies?.qrcode, 'qrcode backs the login QR code')
 })
 
+check('the session/event listener subscribes globally', () => {
+  // Session events are dispatched through the scope that carries the session.
+  // Sessions created through ctx.sessionController live in the controller's
+  // scope, so a listener bound to this plugin's own scope receives nothing for
+  // an app-driven turn: the prompt is admitted, the phone waits, and no reply
+  // ever streams. The host's own controller subscribes with { global: true }.
+  const source = readFileSync(path.join(ROOT, 'lib', 'index.js'), 'utf8')
+  const at = source.indexOf('"session/event"')
+  assert.ok(at !== -1, 'the plugin subscribes to session/event')
+  const registration = source.slice(at, at + 200)
+  assert.match(registration, /global:\s*true/, 'session/event must be subscribed with { global: true }')
+})
+
+check('the shipped code imports no host-internal package subpath', () => {
+  // A deep import into a harness package is a load-time landmine: the subpath
+  // exists in one host build and not the next, and the failure is fatal for the
+  // WHOLE profile (the plugin cannot activate, so boot aborts). The Desktop
+  // 0.2.0-rc.2 dsh-session exports no './chunk-rows', which is exactly how the
+  // 1.8.5 bundle broke boot. Anything host-internal must be vendored locally.
+  const lib = path.join(ROOT, 'lib')
+  const offenders = []
+  for (const file of readdirSync(lib).filter((name) => name.endsWith('.js'))) {
+    const source = readFileSync(path.join(lib, file), 'utf8')
+    for (const match of source.matchAll(/from\s+["'](@deepseek-ai\/[^"']+)["']/g)) {
+      const specifier = match[1]
+      const parts = specifier.split('/')
+      // '@deepseek-ai/<pkg>' is the package root; anything longer is a subpath.
+      if (parts.length > 2) offenders.push(`${file}: ${specifier}`)
+    }
+  }
+  assert.deepEqual(offenders, [], 'harness packages may only be imported at their root')
+})
+
 // -------------------------------------------------- UI status (panel-facing)
 
 /**
@@ -260,7 +298,10 @@ check('linkStatus never carries a credential', () => {
     stopped: false,
     workspaceDir: '/tmp/proj',
   })
-  assert.deepEqual(Object.keys(status).sort(), ['device', 'endpoint', 'link', 'loggedIn', 'nickname', 'uid', 'workspace'])
+  assert.deepEqual(
+    Object.keys(status).sort(),
+    ['broadcastsSent', 'commands', 'device', 'deviceEnrolled', 'endpoint', 'executorAssembled', 'executorPublications', 'lastError', 'lastReplyLength', 'lastSyncError', 'lastTurnDiag', 'link', 'loggedIn', 'messagesSent', 'nickname', 'presenceBeats', 'presenceFailures', 'sessionsBlank', 'sessionsListed', 'sessionsPending', 'sessionsProbe', 'sessionsPruned', 'sessionsRaw', 'sessionsSource', 'uid', 'workspace'],
+  )
   assert.equal(status.link, 'subscribed', 'a live channel subscription is what "tasks can arrive" means')
   assert.ok(!JSON.stringify(status).includes('SECRET'), 'no token may appear in the panel payload')
 })

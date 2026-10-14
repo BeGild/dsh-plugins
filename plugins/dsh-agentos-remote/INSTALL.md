@@ -83,6 +83,8 @@ http://<你的DSH地址>/agentos-remote/login
 ```
 [agentos-remote] login page: /agentos-remote/login (also a panel in the DSH web UI)
 [agentos-remote] session source: cached-login (uid=<uid>)     ← 扫码后
+[agentos-remote] device credentials: keyVersion=1 channels=executor:<deviceId>,user:<uid>:devices
+[agentos-remote] device registry: N device(s), this one online
 [agentos-remote] registered workspace=<目录名> channel=copilot_workbuddy:<uid>_<hostId>_<ws>
 [agentos-remote] connected client=<uuid>
 [agentos-remote] subscribed: copilot_workbuddy:<uid>_<hostId>_<ws>

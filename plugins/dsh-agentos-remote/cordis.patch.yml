@@ -21,8 +21,16 @@
 #   sessionFile    WorkBuddy session .info path override
 #   workspaceDir   the DSH workspace exposed to the mobile app (default cwd)
 #   deviceName     device name shown in the mobile app (default "{hostname}-DSH")
+#   deviceId       conversation-sync device id (default: the plugin-owned
+#                  ~/.workbuddy/.dsh-agentos-device-id, created if absent —
+#                  NOT the desktop's device-id: sharing it collides two live
+#                  processes into one registry identity). Override:
+#                  DSH_AGENTOS_DEVICE_ID
 #   provider       model route for app-driven sessions (default: host default)
 #   model          model id for app-driven sessions (default: host default)
+#   models         model list offered to the app's model picker. Each entry needs
+#                  an `id`; `name` and `vendor` are displayed. `url` and `apiKey`
+#                  are stripped before the list is sent. (default: none)
 #   debug          publish a task-start event back to the app (default false)
 - insert:
     - id: agentos-remote

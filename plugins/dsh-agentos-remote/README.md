@@ -15,10 +15,20 @@ AgentOS 云端
       ▼
 dsh-agentos-remote
   ├─ 凭据三级发现:扫码登录缓存 → 本机 WorkBuddy 会话(若有)→ 环境变量
-  ├─ registerWorkspace 注册 DSH 工作区
-  ├─ 订阅 channel 接收手机任务
-  ├─ 任务 → ctx.agents.create + followup → DSH Agent 执行
-  ├─ 结果 → HTTP COPILOT_RESPONSE 回传 App(失败自动重试)
+  ├─ 设备认证:POST /edge-cloud/credentials 登记到会话同步设备注册表,
+  │   订阅 executor:{deviceId} 与 user:{uid}:devices,心跳上报 device.online
+  ├─ 任务列表:POST /console/as/conversations/v2 登记会话,
+  │   向 user:{uid}:conversations 广播 conversation.created,App 据此刷新
+  ├─ 命令通道:session.create / prompt.submit / get_models / session.set_model /
+  │   get_page / session.stop,结果发布回命令携带的 replyChannel
+  ├─ 会话与回合:走 DSH 的 sessionController(与 Web UI 同一个会话池),
+  │   create → selectModel → prompt;回合事件经 session/event 转成
+  │   convmsg:{uid} 上的 ACP sessionUpdate(消息/思考/工具/相位/终态)
+  ├─ 只转发用户自己的发言:DSH 把框架上下文也注入成 user 角色消息
+  │   (source.kind = runtime-context / agent-instructions / skill-catalog 等),
+  │   这些不进对话流 —— 手机端 ACP 没有"上下文条目"类型,只能隐藏
+  ├─ AgentOS 工作区任务(旧通道)保留:ctx.agents + followup,
+  │   结果经 HTTP COPILOT_RESPONSE 回传
   └─ refreshToken 自动轮换续期 → 一次扫码长期有效
 ```
 
@@ -55,11 +65,18 @@ node node_modules/dsh-agentos-remote/login.js
 凭据保存在 `~/.workbuddy/.dsh-agentos-credentials.json`,重启无需重新扫码(refreshToken 自动轮换续期)。
 
 - 回推端点:`POST {endpoint}/v2/backgroundagent/localProxy/receive`(实测 HTTP 200)
-- 链路保活:每 30 分钟 ping,服务端报 `RE_REGISTER_WORKSPACE` 即重注册;connectionToken 7 天 TTL 兜底
+- 链路保活:每 20 秒 ping 一次,服务端报 `RE_REGISTER_WORKSPACE` 即重注册;connectionToken 7 天 TTL 兜底
+- 设备在线:每 5 分钟向 `user:{uid}:devices` 上报一次 `device.online`;设备链路断开会立即重新登记,不等待工作区 token 的 7 天 TTL
 - 任务去重:按 `requestId`,5 分钟窗口(防 Centrifugo 重放导致重复执行)
 - 面板状态端点:`GET /agentos-remote/login/api/status`(只读快照,见下方安全提示)
 - 登录流(逆向自 WorkBuddy ExternalLinkAuthenticationProvider,全部实测):
   `POST /v2/plugin/auth/state?platform=workbuddy` → 服务端下发 authUrl → 用户认证 → 轮询 `/v2/plugin/auth/token?state=` → `/v2/plugin/login/account` → `/v2/plugin/accounts`
+- 设备认证(逆向自 WorkBuddy edge-sync 扩展):
+  `POST {authBase}/edge-cloud/credentials`(body 含 `userId` / `deviceId` / `clientType:"desktop"` / `deviceName` / `useDefaultScopes:true` / `chSdkVersion`) → 返回 `connectToken` 与按 channel 分配的 `subscriptionTokens` → 连接 `cfWsUrl` 并订阅 `executor:{deviceId}`(接收命令)与 `user:{uid}:devices`(上报在线) → `GET {authBase}/console/as/conversation-sync/devices/online` 核对注册表
+- 加密信封(同上来源):手机命令与所有回复都是 AES-256-GCM 信封(密钥来自凭据的 `encryptionKeys`/`signingKeys`,按 channel scope 查表,HMAC-SHA256 签名,AAD 为 `msgId|partIndex|partTotal|keyVersion`)。命令通道收到分片按 `msgId` 重组;回复与会话广播走 `POST {apisixPublishUrl}`(`Authorization: Bearer <publishToken>`,每信封一请求);presence 是唯一走 WS 明文的通道。
+- 任务列表与模型选择(同一来源):
+  `session.create` / `prompt.submit` → `POST https://www.workbuddy.cn/console/as/conversations/v2` 登记会话 → 向 `user:{uid}:conversations` 广播 `conversation.created`(App 收到即刷新列表)。`get_models` 返回 `models` 配置(去掉凭据),`session.set_model` 记住选择并用于后续任务。命令的返回值发布到该命令携带的 `replyChannel`。
+
 
 ## 配置(cordis.patch.yml / 环境变量)
 
@@ -71,7 +88,9 @@ node node_modules/dsh-agentos-remote/login.js
 | `sessionFile` | 按平台自动发现 | WorkBuddy 会话文件路径覆盖 |
 | `workspaceDir` | DSH 启动目录 | 暴露给手机的工作区目录 |
 | `deviceName` | `{主机名}-DSH` | 手机 App 里显示的设备名(与 WorkBuddy Desktop 并列为独立设备) |
-| `provider` / `model` | 跟随宿主 | 任务使用的模型路由 |
+| `deviceId` | `~/.workbuddy/.dsh-agentos-device-id` | 会话同步设备注册表里的设备 ID。默认使用插件自己的 ID 文件(没有就创建),与 WorkBuddy 桌面端的设备**相互独立**;`DSH_AGENTOS_DEVICE_ID` 可强制指定。不要填桌面端的 `device-id`,两个进程会争用同一设备身份 |
+| `provider` / `model` | 跟随宿主 | 任务使用的模型路由。App 里选的模型会覆盖 `model` |
+| `models` | 空 | 提供给 App 模型选择器的模型列表,每项至少要有 `id`,`name` 与 `vendor` 用于展示。`url` 和 `apiKey` 在发出前会被删除 |
 | `debug` | `false` | 回传 task-start 事件 |
 
 环境变量(优先于配置):`DSH_AGENTOS_ACCESS_TOKEN` / `DSH_AGENTOS_SESSION_FILE` / `DSH_AGENTOS_USER_ID` / `DSH_AGENTOS_DOMAIN` / `DSH_AGENTOS_ENTERPRISE_ID`。
@@ -96,6 +115,7 @@ node node_modules/dsh-agentos-remote/login.js
 - 持有你的 WorkBuddy 账号凭据并调用腾讯 AgentOS **私有接口**（非公开协议，腾讯侧可能随时变更）。
 - 凭据明文保存在 `~/.workbuddy/.dsh-agentos-credentials.json`（与 WorkBuddy 桌面端同级风险）。
 - 出网连接到 `tencent.sso.codebuddy.cn` / `copilot.tencent.com` 与云端 Centrifugo WebSocket；不读取凭据以外的本机文件。
+- 设备认证会读写 `~/.workbuddy/.dsh-agentos-device-id`（只这一行 UUID，插件自有文件）：已存在就复用，不存在就创建。不读取也不改动 WorkBuddy 桌面端的 `device-id`。
 - **登录页与状态接口不带鉴权**：`/agentos-remote/login` 及其 `/api/*` 挂在 DSH Web 服务上，能访问你 DSH Web UI 的人就能打开它、读到 `/api/status` 返回的 uid / 昵称 / 设备名 / 工作区名，也可能发起一次扫码登录（但登录必须由**你的手机在微信里确认**才会生效）。这些接口不返回任何 token、refreshToken 或通道凭据。浏览器侧只调用这几个同源路由，不额外出网。
 
 **装了这个插件 = 你的 WorkBuddy 手机账号可以驱动这台机器上的 agent**（包括 shell 与文件工具）。仅建议在个人设备、自担风险使用。
