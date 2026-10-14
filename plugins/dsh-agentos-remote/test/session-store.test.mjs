@@ -41,11 +41,11 @@ function withTempSessions(build) {
   }
 }
 
-function writeSession(root, workspace, sessionId, rows) {
+function writeSession(root, workspace, sessionId, rows, fileName = 'session.v4.jsonl.zstd') {
   const dir = path.join(root, workspace, sessionId)
   mkdirSync(dir, { recursive: true })
   const lines = rows.map((row) => JSON.stringify(row)).join('\n') + '\n'
-  writeFileSync(path.join(dir, 'session.v4.jsonl.zstd'), zstdCompressSync(Buffer.from(lines, 'utf8')))
+  writeFileSync(path.join(dir, fileName), zstdCompressSync(Buffer.from(lines, 'utf8')))
 }
 
 console.log('dsh-agentos-remote session-store tests\n')
@@ -228,6 +228,32 @@ await check('dshSessionHistory replays a compressed log with title and updates',
     assert.deepEqual(history.updates.map((u) => u.sessionUpdate), ['user_message_chunk', 'agent_message_chunk'])
     assert.ok(history.updates.every((u) => u._meta['codebuddy.ai'].isHistoryReplay === true))
     assert.equal(dshSessionHistory('nobody'), null)
+  })
+})
+
+await check('every log name the harness has used is read, not just the newest', () => {
+  // The name carries the row format, and a store that has been upgraded holds
+  // several at once: 0.2.0 writes `session.v4.jsonl.zstd`, 0.1.5 wrote
+  // `session.jsonl.zstd`. Reading only the newest name made a machine that had
+  // just upgraded list placeholder titles and open every conversation empty,
+  // even though the rows themselves parse fine under every one of these names.
+  withTempSessions((root) => {
+    const rows = [
+      { type: 'session', id: 's', cwd: 'E:\\work\\x', createdAt: 1 },
+      { type: 'session/title', data: { title: '旧格式也能读出标题' } },
+      { type: 'user/message', data: { id: 'u1', role: 'user', content: [{ type: 'text', text: '问题' }] } },
+      { type: 'assistant/message', data: { message: { id: 'a1', role: 'assistant', content: [{ type: 'text', text: '答复' }] } } },
+    ]
+    writeSession(root, '--E-work-x--', 'sess-v4', rows, 'session.v4.jsonl.zstd')
+    writeSession(root, '--E-work-x--', 'sess-v3', rows, 'session.v3.jsonl.zstd')
+    writeSession(root, '--E-work-x--', 'sess-plain', rows, 'session.jsonl.zstd')
+    for (const id of ['sess-v4', 'sess-v3', 'sess-plain']) {
+      assert.ok(findDshSessionFile(id), `${id} is not found`)
+      const history = dshSessionHistory(id)
+      assert.equal(history.title, '旧格式也能读出标题', `${id} lost its title`)
+      assert.deepEqual(history.updates.map((u) => u.sessionUpdate), ['user_message_chunk', 'agent_message_chunk'], `${id} lost its history`)
+    }
+    assert.equal(listDshSessions().length, 3, 'the disk listing sees all three')
   })
 })
 

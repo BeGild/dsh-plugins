@@ -1,6 +1,6 @@
 {
   "name": "dsh-agentos-remote",
-  "version": "1.9.26",
+  "version": "1.9.27",
   "description": "WorkBuddy mobile-app remote control for DSH: implements WorkBuddy's AgentOS local-agent protocol (registerWorkspace + Centrifugo downlink + HTTP COPILOT_RESPONSE uplink) with built-in WeChat-QR login reachable from a sidebar panel in the DSH web client or the standalone /agentos-remote/login page — no WorkBuddy desktop required on the DSH host.",
   "type": "module",
   "main": "lib/index.js",

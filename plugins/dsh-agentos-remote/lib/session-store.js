@@ -27,7 +27,30 @@ import path from "node:path";
 export function sessionsRoot() {
   return path.join(os.homedir(), ".dsh", "sessions");
 }
-const SESSION_FILE = "session.v4.jsonl.zstd";
+/**
+ * The session log file names the harness has used, newest row format first.
+ *
+ * The name encodes the format and the harness writes whichever it currently
+ * uses: 0.2.0 writes `session.v4.jsonl.zstd`, 0.1.5 wrote
+ * `session.jsonl.zstd`, and a store that has seen both keeps them side by
+ * side. Looking only for the current name loses every session whose log
+ * predates an upgrade — measured on a machine that had just moved from 0.1.5
+ * to 0.2.0: 138 logs named `session.jsonl.zstd` went unseen, so the phone
+ * listed placeholder titles ("会话 1a6c016e") and every conversation opened
+ * empty. The rows themselves read back fine in every one of these names.
+ */
+const SESSION_FILES = ["session.v4.jsonl.zstd", "session.v3.jsonl.zstd", "session.jsonl.zstd"];
+
+/** The newest log this session directory holds, or null when it holds none. */
+function sessionFileIn(dir) {
+  for (const name of SESSION_FILES) {
+    const file = path.join(dir, name);
+    try {
+      if (fs.statSync(file).isFile()) return file;
+    } catch {}
+  }
+  return null;
+}
 
 /** zstd frame magic, little-endian on disk: every durability flush starts one. */
 const ZSTD_MAGIC = [0x28, 0xb5, 0x2f, 0xfd];
@@ -92,10 +115,11 @@ export function listDshSessions() {
     }
     for (const entry of sessions) {
       if (!entry.isDirectory()) continue;
-      const file = path.join(sessionsRoot(), ws.name, entry.name, SESSION_FILE);
+      const file = sessionFileIn(path.join(sessionsRoot(), ws.name, entry.name));
+      if (!file) continue;
       try {
         const stat = fs.statSync(file);
-        if (stat.isFile()) out.push({ id: entry.name, dir: path.dirname(file), file, mtimeMs: stat.mtimeMs });
+        out.push({ id: entry.name, dir: path.dirname(file), file, mtimeMs: stat.mtimeMs });
       } catch {}
     }
   }
@@ -139,10 +163,8 @@ function statSessionFile(sessionId) {
   }
   for (const ws of workspaces) {
     if (!ws.isDirectory()) continue;
-    const file = path.join(sessionsRoot(), ws.name, sessionId, SESSION_FILE);
-    try {
-      if (fs.statSync(file).isFile()) return file;
-    } catch {}
+    const file = sessionFileIn(path.join(sessionsRoot(), ws.name, sessionId));
+    if (file) return file;
   }
   return null;
 }
