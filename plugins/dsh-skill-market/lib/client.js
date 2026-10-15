@@ -339,7 +339,7 @@ window.__ModuleLoader__.load({
           style: S.iconImg,
           src: API.iconUrl(source, id),
           alt: "",
-          loading: "lazy",
+
           onError: () => setFailed(true),
         }),
       );
@@ -509,21 +509,51 @@ window.__ModuleLoader__.load({
       // Page size for the visible list; 0 = the server's default page. Reset
       // whenever the tab or query changes, grown by the load-more button.
       const [limit, setLimit] = React.useState(0);
+      // Grid anchor: after a load-more grows the list, scroll so the first
+      // NEW card sits at the viewport top — the reader continues exactly
+      // where they left off instead of being thrown back to the head.
+      const gridRef = React.useRef(null);
+      const scrollToIndex = React.useRef(null);
+      const phaseRef = React.useRef(null);
 
       React.useEffect(() => {
         let alive = true;
+        const phase = `${tab} ${query.trim()}`;
+        const phaseChanged = phaseRef.current !== phase;
+        phaseRef.current = phase;
+        if (phaseChanged) setLimit(0);
         setError("");
         setNote("");
-        setEntries(null);
+        // A fresh phase starts from an empty grid; a page-growth refetch
+        // keeps the old rows mounted so the scroll position survives.
+        if (phaseChanged || entries === null) setEntries(null);
         (async () => {
           try {
             const page = tab === "installed"
               ? await api.installed()
               : await api.search(tab, query.trim(), limit || undefined);
             if (!alive) return;
-            setEntries(page.entries ?? []);
-            setTotal(page.total ?? (page.entries ?? []).length);
+            const next = page.entries ?? [];
+            setEntries(next);
+            setTotal(page.total ?? next.length);
             setTruncated(page.truncated === true);
+            // Warm every icon of the page in parallel: cards paint with
+            // their art instead of popping it in one network round later.
+            if (tab !== "installed") {
+              for (const entry of next) {
+                if (entry.hasIcon === false) continue;
+                const img = new Image();
+                img.src = api.iconUrl(entry.source, entry.id);
+              }
+            }
+            const anchor = scrollToIndex.current;
+            if (anchor !== null && anchor > 0) {
+              scrollToIndex.current = null;
+              requestAnimationFrame(() => {
+                const card = gridRef.current?.children[anchor];
+                if (card) card.scrollIntoView({ block: "start" });
+              });
+            }
           } catch (e) {
             if (!alive) return;
             setEntries([]);
@@ -601,7 +631,7 @@ window.__ModuleLoader__.load({
             ? h("div", { style: S.status }, t("state.loading"))
             : entries.length === 0
               ? h("div", { style: S.status }, error ? t("state.unreachable") : t("state.empty"))
-              : h("div", { style: S.grid },
+              : h("div", { style: S.grid, ref: gridRef },
                 truncated || total > entries.length
                   ? h("div", { style: { ...S.status, gridColumn: "1 / -1" } }, `${entries.length} / ${total}`)
                   : null,
@@ -622,7 +652,10 @@ window.__ModuleLoader__.load({
                         ...S.button, ...S.buttonPrimary, ...S.buttonBusy,
                         gridColumn: "1 / -1", cursor: "pointer", opacity: 1,
                       },
-                      onClick: () => setLimit((current) => (current || entries.length) + 30),
+                      onClick: () => {
+                        scrollToIndex.current = entries.length;
+                        setLimit((current) => (current || entries.length) + 30);
+                      },
                     }, `${t("action.more")} · ${entries.length} / ${total}`)
                   : null,
               ),
