@@ -1,6 +1,6 @@
 {
   "name": "dsh-skill-market",
-  "version": "0.8.0",
+  "version": "0.9.1",
   "description": "A skill-market web panel and skill_market tool that install ZCode plugins and WorkBuddy skills into a DeepSeek Harness profile, running a plugin's skills, slash commands, command hooks, and MCP servers; its slash source matches skills by package and description too.",
   "type": "module",
   "main": "lib/index.js",

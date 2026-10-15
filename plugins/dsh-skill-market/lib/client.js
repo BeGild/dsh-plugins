@@ -63,6 +63,8 @@ window.__ModuleLoader__.load({
       "action.removing": "卸载中…",
       "action.detail": "详情",
       "action.more": "加载更多",
+      "state.loadingMore": "加载中…",
+      "state.end": "已显示全部",
       "action.close": "关闭",
       "badge.installed": "已安装",
       "badge.listedOnly": "仅展示",
@@ -97,6 +99,8 @@ window.__ModuleLoader__.load({
       "action.removing": "Removing…",
       "action.detail": "Details",
       "action.more": "Load more",
+      "state.loadingMore": "Loading…",
+      "state.end": "All shown",
       "action.close": "Close",
       "badge.installed": "Installed",
       "badge.listedOnly": "Listed only",
@@ -506,28 +510,70 @@ window.__ModuleLoader__.load({
       const [note, setNote] = React.useState("");
       const [selected, setSelected] = React.useState(null);
       const [nonce, setNonce] = React.useState(0);
-      // Page size for the visible list; 0 = the server's default page. Reset
-      // whenever the tab or query changes, grown by the load-more button.
-      const [limit, setLimit] = React.useState(0);
+      // Page size adapts to the viewport: enough cards to fill the panel
+      // plus a buffer, so a wide screen pulls a full first page instead of
+      // a fixed 30. Recomputed per growth so a resized window pages anew.
+      const pageSize = () => {
+        const cols = Math.max(1, Math.floor((window.innerWidth - 80) / 210))
+        const rows = Math.max(3, Math.ceil((window.innerHeight - 200) / 150) + 1)
+        return Math.min(120, cols * rows)
+      }
+      const [limit, setLimit] = React.useState(0)
+      const initialPage = React.useRef(0)
       // Grid anchor: after a load-more grows the list, scroll so the first
       // NEW card sits at the viewport top — the reader continues exactly
       // where they left off instead of being thrown back to the head.
       const gridRef = React.useRef(null);
+      const panelRef = React.useRef(null);
+      const sentinelRef = React.useRef(null);
+      const fetchingRef = React.useRef(false);
+      // One auto-load per approach: the sentinel must LEAVE the root margin
+      // before the next fire, otherwise a single scroll chains to the end.
+      const armedRef = React.useRef(true);
       const scrollToIndex = React.useRef(null);
       const phaseRef = React.useRef(null);
+      const grow = () => {
+        if (fetchingRef.current) return
+        const current = entries === null ? 0 : entries.length
+        if (current >= total) return
+        scrollToIndex.current = current
+        setLimit((prev) => Math.max(prev, current) + pageSize())
+      }
+
+      // Infinite scroll: a sentinel under the grid grows the list when it
+      // comes near the viewport bottom; the observer detaches at the end.
+      React.useEffect(() => {
+        if (tab === "installed") return undefined
+        const sentinel = sentinelRef.current
+        const root = panelRef.current
+        if (!sentinel || !root) return undefined
+        const observer = new IntersectionObserver((records) => {
+          if (records.some((record) => !record.isIntersecting)) armedRef.current = true
+          if (armedRef.current && records.some((record) => record.isIntersecting)) {
+            armedRef.current = false
+            grow()
+          }
+        }, { root, rootMargin: "600px 0px" })
+        observer.observe(sentinel)
+        return () => observer.disconnect()
+      }, [tab, entries, total, api, query])
 
       React.useEffect(() => {
         let alive = true;
-        const phase = `${tab} ${query.trim()}`;
+        const phase = `${tab}|${query.trim()}`;
         const phaseChanged = phaseRef.current !== phase;
         phaseRef.current = phase;
-        if (phaseChanged) setLimit(0);
+        if (phaseChanged) {
+          initialPage.current = pageSize()
+          setLimit(initialPage.current)
+        }
         setError("");
         setNote("");
         // A fresh phase starts from an empty grid; a page-growth refetch
         // keeps the old rows mounted so the scroll position survives.
         if (phaseChanged || entries === null) setEntries(null);
-        (async () => {
+        fetchingRef.current = true
+        ;(async () => {
           try {
             const page = tab === "installed"
               ? await api.installed()
@@ -560,6 +606,8 @@ window.__ModuleLoader__.load({
             setTotal(0);
             setTruncated(false);
             setError(e.message);
+          } finally {
+            if (alive) fetchingRef.current = false
           }
         })();
         return () => { alive = false; };
@@ -596,7 +644,7 @@ window.__ModuleLoader__.load({
         }
       };
 
-      return h("div", { style: S.panel },
+      return h("div", { style: S.panel, ref: panelRef },
         h("div", { style: S.column },
           h("div", null,
             h("h1", { style: S.title }, t("panel.title")),
@@ -644,19 +692,17 @@ window.__ModuleLoader__.load({
                   onAction: (kind) => run(kind, entry.id),
                   onOpen: () => setSelected(entry),
                 })),
-                tab !== "installed" && total > entries.length
-                  ? h("button", {
-                      key: "load-more",
-                      type: "button",
+                tab !== "installed"
+                  ? h("div", {
+                      key: "sentinel",
+                      ref: sentinelRef,
                       style: {
-                        ...S.button, ...S.buttonPrimary, ...S.buttonBusy,
-                        gridColumn: "1 / -1", cursor: "pointer", opacity: 1,
+                        gridColumn: "1 / -1", padding: "10px 0 2px", textAlign: "center",
+                        fontSize: 12, color: "var(--dsw-alias-label-tertiary)",
                       },
-                      onClick: () => {
-                        scrollToIndex.current = entries.length;
-                        setLimit((current) => (current || entries.length) + 30);
-                      },
-                    }, `${t("action.more")} · ${entries.length} / ${total}`)
+                    }, entries.length >= total
+                      ? `${t("state.end")} · ${total}`
+                      : `${t("state.loadingMore")} · ${entries.length} / ${total}`)
                   : null,
               ),
         ),
