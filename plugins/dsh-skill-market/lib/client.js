@@ -504,6 +504,7 @@ window.__ModuleLoader__.load({
       const [entries, setEntries] = React.useState(null);
       const [total, setTotal] = React.useState(0);
       const [truncated, setTruncated] = React.useState(false);
+      const [fetching, setFetching] = React.useState(false);
       const [installedIds, setInstalledIds] = React.useState([]);
       const [busy, setBusy] = React.useState(null);
       const [error, setError] = React.useState("");
@@ -527,9 +528,10 @@ window.__ModuleLoader__.load({
       const panelRef = React.useRef(null);
       const sentinelRef = React.useRef(null);
       const fetchingRef = React.useRef(false);
-      // One auto-load per approach: the sentinel must LEAVE the root margin
-      // before the next fire, otherwise a single scroll chains to the end.
-      const armedRef = React.useRef(true);
+      // Auto-load cooldown: scroll events arrive in bursts; one fire per
+      // burst, the next scroll (or the mount check for a short first page)
+      // triggers again.
+      const lastFireRef = React.useRef(0)
       const scrollToIndex = React.useRef(null);
       const phaseRef = React.useRef(null);
       const grow = () => {
@@ -540,22 +542,40 @@ window.__ModuleLoader__.load({
         setLimit((prev) => Math.max(prev, current) + pageSize())
       }
 
-      // Infinite scroll: a sentinel under the grid grows the list when it
-      // comes near the viewport bottom; the observer detaches at the end.
+      // Infinite scroll, scroll-event driven: fires when the sentinel
+      // comes within 250px of the panel bottom. Scroll events fire for
+      // user and programmatic scrolls alike, unlike IntersectionObserver
+      // margin transitions, which silently no-op when the panel already
+      // sits at its maximum scroll.
       React.useEffect(() => {
         if (tab === "installed") return undefined
-        const sentinel = sentinelRef.current
-        const root = panelRef.current
-        if (!sentinel || !root) return undefined
-        const observer = new IntersectionObserver((records) => {
-          if (records.some((record) => !record.isIntersecting)) armedRef.current = true
-          if (armedRef.current && records.some((record) => record.isIntersecting)) {
-            armedRef.current = false
+        const check = () => {
+          const sentinel = sentinelRef.current
+          const root = panelRef.current
+          if (!sentinel || !root) return
+          if (fetchingRef.current) return
+          if (entries !== null && entries.length >= total) return
+          if (Date.now() - lastFireRef.current < 300) return
+          const sentinelBottom = sentinel.getBoundingClientRect().bottom
+          const viewBottom = root.getBoundingClientRect().bottom
+          if (sentinelBottom <= viewBottom + 250) {
+            lastFireRef.current = Date.now()
             grow()
           }
-        }, { root, rootMargin: "600px 0px" })
-        observer.observe(sentinel)
-        return () => observer.disconnect()
+        }
+        const root = panelRef.current
+        if (!root) return undefined
+        root.addEventListener("scroll", check, { passive: true })
+        window.addEventListener("resize", check)
+        // A first page shorter than the viewport must grow without a
+        // scroll; the anchor after a growth scrolls the reader away from
+        // the sentinel, so chains do not run.
+        const mount = setTimeout(check, 120)
+        return () => {
+          root.removeEventListener("scroll", check)
+          window.removeEventListener("resize", check)
+          clearTimeout(mount)
+        }
       }, [tab, entries, total, api, query])
 
       React.useEffect(() => {
@@ -573,6 +593,7 @@ window.__ModuleLoader__.load({
         // keeps the old rows mounted so the scroll position survives.
         if (phaseChanged || entries === null) setEntries(null);
         fetchingRef.current = true
+        if (tab !== "installed") setFetching(true)
         ;(async () => {
           try {
             const page = tab === "installed"
@@ -607,7 +628,10 @@ window.__ModuleLoader__.load({
             setTruncated(false);
             setError(e.message);
           } finally {
-            if (alive) fetchingRef.current = false
+            if (alive) {
+              fetchingRef.current = false
+              setFetching(false)
+            }
           }
         })();
         return () => { alive = false; };
@@ -702,7 +726,9 @@ window.__ModuleLoader__.load({
                       },
                     }, entries.length >= total
                       ? `${t("state.end")} · ${total}`
-                      : `${t("state.loadingMore")} · ${entries.length} / ${total}`)
+                      : fetching
+                        ? `${t("state.loadingMore")} · ${entries.length} / ${total}`
+                        : `${entries.length} / ${total}`)
                   : null,
               ),
         ),
