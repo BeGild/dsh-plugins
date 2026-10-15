@@ -366,10 +366,10 @@ await test('the client registers matching dictionaries and both reachability slo
 await test('the client fetches exactly the routes the host registers', async () => {
   const client = readFileSync(join(ROOT_DIR, 'lib', 'client.js'), 'utf8')
   const host = readFileSync(join(ROOT_DIR, 'lib', 'index.js'), 'utf8')
-  const fetched = new Set([...client.matchAll(/\$\{BASE\}\/(\w+)/g)].map((m) => m[1]))
-  const served = new Set([...host.matchAll(/API_BASE}\/(\w+)/g)].map((m) => m[1]))
+  const fetched = new Set([...client.matchAll(/\$\{BASE\}\/([\w/]+)/g)].map((m) => m[1]))
+  const served = new Set([...host.matchAll(/API_BASE}\/([\w/]+)/g)].map((m) => m[1]))
   assert.deepEqual(fetched, served)
-  assert.deepEqual([...fetched].sort(), ['icon', 'install', 'installed', 'remove', 'search'])
+  assert.deepEqual([...fetched].sort(), ['icon', 'install', 'installed', 'local', 'remove', 'search', 'skill/remove', 'skill/toggle'])
 })
 
 await test('the wide matcher finds a whole package by fragment', async () => {

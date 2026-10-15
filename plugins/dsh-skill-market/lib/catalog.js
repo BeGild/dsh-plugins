@@ -350,7 +350,56 @@ export function prefixSkillDescription(markdown, packageId) {
   return `---\n${rewritten}\n---${markdown.slice(match[0].length)}`
 }
 
-/** The YAML block between the opening fences, or ''. */
+/**
+ * Set or clear a skill's invocation policy in its frontmatter.
+ *
+ * Disabling writes `disable-model-invocation: true` and
+ * `user-invocable: false` — the harness resolves both to false, so the
+ * skill disappears from the model catalog and the user '/' menu alike.
+ * Enabling removes both keys (their absence means invocable). Every other
+ * frontmatter line and the body are preserved verbatim.
+ * @param {string} markdown - the skill file's full text.
+ * @param {{disable: boolean}} options
+ * @returns {{markdown: string, changed: boolean}} the rewritten text.
+ */
+export function setSkillInvocation(markdown, { disable }) {
+  const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(markdown)
+  if (!match) return { markdown, changed: false }
+  const keys = ["disable-model-invocation", "user-invocable"]
+  const kept = match[1].split(/\r?\n/).filter((line) => !keys.some((key) => line.trim().startsWith(key + ":")))
+  if (disable) kept.push("disable-model-invocation: true", "user-invocable: false")
+  const frontmatter = kept.join("\n")
+  return {
+    markdown: `---\n${frontmatter}\n---${markdown.slice(match[0].length)}`,
+    changed: frontmatter !== match[1],
+  }
+}
+
+/**
+ * The invocation policy a skill file declares: absent keys mean invocable.
+ * @param {string} markdown - the skill file's full text.
+ * @returns {{modelInvocable: boolean, userInvocable: boolean}}
+ */
+export function invocationOf(markdown) {
+  const data = parseFlatYaml(frontmatterOf(markdown))
+  return {
+    modelInvocable: unquote(data["disable-model-invocation"]) !== "true",
+    userInvocable: unquote(data["user-invocable"]) !== "false",
+  }
+}
+
+/**
+ * Split a `[package]` attribution prefix off a description.
+ * @param {{description?: string}} item
+ * @returns {{package: string|null, description: string}}
+ */
+export function attributionOf(item) {
+  const raw = item.description ?? ""
+  const match = /^\[([^\]]+)\]\s*/.exec(raw)
+  if (!match) return { package: null, description: raw }
+  return { package: match[1], description: raw.slice(match[0].length) }
+}
+
 function frontmatterOf(markdown) {
   const match = /^---\r?\n([\s\S]*?)\r?\n---/.exec(typeof markdown === 'string' ? markdown : '')
   return match ? match[1] : ''

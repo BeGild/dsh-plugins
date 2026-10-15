@@ -45,12 +45,12 @@ window.__ModuleLoader__.load({
     const SECONDARY = "var(--dsh-content-font-size-secondary, 13px)";
 
     const zh = {
-      "panel.label": "技能市场",
-      "panel.title": "技能市场",
-      "panel.subtitle": "浏览 ZCode 插件与 WorkBuddy 技能,一键装进当前 DSH。ZCode 插件的技能、斜杠命令、hooks 和 MCP 服务器会一并接入。",
+      "panel.label": "工具包",
+      "panel.title": "工具包",
+      "panel.subtitle": "浏览 ZCode 插件与 WorkBuddy 技能,一键装进当前 DSH;管理页可启停/删除全部本地技能。ZCode 插件的技能、斜杠命令、hooks 和 MCP 服务器会一并接入。",
       "tab.zcode": "ZCode 插件",
       "tab.workbuddy": "WorkBuddy 技能",
-      "tab.installed": "已安装",
+      "tab.installed": "管理",
       "menu.userOnly": "仅用户",
       "search.placeholder": "搜索名称或描述…",
       "search.action": "搜索",
@@ -63,6 +63,13 @@ window.__ModuleLoader__.load({
       "action.removing": "卸载中…",
       "action.detail": "详情",
       "action.more": "加载更多",
+      "action.disable": "禁用",
+      "action.enable": "启用",
+      "action.deleteSkill": "删除技能",
+      "section.localSkills": "本地技能",
+      "skill.manual": "手动",
+      "skill.disabledBadge": "已禁用",
+      "skill.userOnlyBadge": "仅用户",
       "state.loadingMore": "加载中…",
       "state.end": "已显示全部",
       "action.close": "关闭",
@@ -81,12 +88,12 @@ window.__ModuleLoader__.load({
     };
 
     const en = {
-      "panel.label": "Skill market",
-      "panel.title": "Skill market",
-      "panel.subtitle": "Browse ZCode plugins and WorkBuddy skills and install them into this DSH with one click. A ZCode plugin brings its skills, slash commands, hooks, and MCP servers along.",
+      "panel.label": "Toolkit",
+      "panel.title": "Toolkit",
+      "panel.subtitle": "Browse ZCode plugins and WorkBuddy skills and install them into this DSH with one click; the manage tab enables, disables, and deletes every local skill. A ZCode plugin brings its skills, slash commands, hooks, and MCP servers along.",
       "tab.zcode": "ZCode plugins",
       "tab.workbuddy": "WorkBuddy skills",
-      "tab.installed": "Installed",
+      "tab.installed": "Manage",
       "menu.userOnly": "User only",
       "search.placeholder": "Search name or description…",
       "search.action": "Search",
@@ -99,6 +106,13 @@ window.__ModuleLoader__.load({
       "action.removing": "Removing…",
       "action.detail": "Details",
       "action.more": "Load more",
+      "action.disable": "Disable",
+      "action.enable": "Enable",
+      "action.deleteSkill": "Delete skill",
+      "section.localSkills": "Local skills",
+      "skill.manual": "manual",
+      "skill.disabledBadge": "disabled",
+      "skill.userOnlyBadge": "user only",
       "state.loadingMore": "Loading…",
       "state.end": "All shown",
       "action.close": "Close",
@@ -157,6 +171,24 @@ window.__ModuleLoader__.load({
         const body = await getJson(`${BASE}/search?${params.toString()}`);
         if (!body?.ok) throw new Error(body?.error || "search failed");
         return body;
+      },
+      /** @returns {Promise<{skills: object[]}>} every local skill with policy flags, or throws. */
+      async local() {
+        const body = await getJson(`${BASE}/local`)
+        if (!body?.ok) throw new Error(body?.error || "local list unavailable")
+        return body
+      },
+      /** Toggle one local skill's invocation policy. */
+      async toggleSkill(id, disable) {
+        const body = await postJson(`${BASE}/skill/toggle`, { id, disable })
+        if (!body?.ok) throw new Error(body?.error || "toggle failed")
+        return body
+      },
+      /** Delete one local skill bundle. */
+      async removeSkill(id) {
+        const body = await postJson(`${BASE}/skill/remove`, { id })
+        if (!body?.ok) throw new Error(body?.error || "delete failed")
+        return body
       },
       /** @returns {Promise<{entries: object[]}>} the install records, or throws. */
       async installed() {
@@ -297,6 +329,19 @@ window.__ModuleLoader__.load({
       modalFoot: { display: "flex", justifyContent: "flex-end", gap: 8, marginTop: 18 },
       iconWrap: { display: "inline-flex", alignItems: "center", justifyContent: "center" },
       skillList: { display: "flex", flexDirection: "column", gap: 4, marginTop: 2 },
+      adminRow: {
+        display: "flex", alignItems: "center", gap: 10, padding: "8px 12px",
+        borderRadius: 10, border: "1px solid var(--dsw-alias-border-l2)",
+        background: "var(--dsw-alias-bg-layer-1)",
+      },
+      adminName: { fontWeight: 600, fontSize: 13, minWidth: 0, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+      adminMeta: { fontSize: 11.5, color: "var(--dsw-alias-label-tertiary)", minWidth: 0, flex: 1, whiteSpace: "nowrap", overflow: "hidden", textOverflow: "ellipsis" },
+      adminBtn: {
+        padding: "4px 10px", borderRadius: 7, cursor: "pointer", font: "inherit", fontSize: 12,
+        border: "1px solid var(--dsw-alias-border-l2)", background: "transparent",
+        color: "var(--dsw-alias-label-primary)", flex: "none",
+      },
+      adminBtnDanger: { color: "var(--dsw-alias-state-error-primary)" },
       skillRow: { display: "flex", alignItems: "center", gap: 7, minWidth: 0 },
       skillIcon: {
         width: 17, height: 17, borderRadius: 5, flex: "none", overflow: "hidden",
@@ -499,6 +544,50 @@ window.__ModuleLoader__.load({
     }
 
     /**
+     * The manage tab's local-skill roster: every skill the default provider
+     * can see — market installs and hand-placed bundles alike — with its
+     * invocation state and per-skill enable/disable/delete.
+     * @param {{t: Function, skills: object[]|null, busy: string|null,
+     *          onOp: (op: 'disable'|'enable'|'delete', id: string) => void}} props
+     */
+    function LocalSkillsSection({ t, skills, busy, onOp }) {
+      if (skills === null) return h("div", { style: S.status }, t("state.loading"))
+      if (skills.length === 0) return h("div", { style: S.status }, t("state.empty"))
+      return h("div", { style: { display: "flex", flexDirection: "column", gap: 6, marginTop: 10 } },
+        h("div", { style: { fontSize: 12, fontWeight: 600, color: "var(--dsw-alias-label-secondary)", marginTop: 8 } },
+          `${t("section.localSkills")} · ${skills.length}`),
+        skills.map((skill) => {
+          const disabled = !skill.modelInvocable && !skill.userInvocable
+          const userOnly = skill.modelInvocable === false && skill.userInvocable === true
+          const rowBusy = busy === `skill:${skill.id}`
+          return h("div", { key: skill.id, style: S.adminRow },
+            h("span", { style: { ...S.badge, ...(disabled ? {} : S.badgeOn) } },
+              disabled ? t("skill.disabledBadge") : userOnly ? t("skill.userOnlyBadge") : t("badge.installed")),
+            h("span", { style: S.adminName, title: skill.file }, skill.name),
+            h("span", { style: S.adminMeta },
+              [
+                skill.package ? `${t("skill.fromPackage")}: ${skill.package}` : null,
+                skill.managed ? skill.managed : t("skill.manual"),
+                skill.description.slice(0, 60),
+              ].filter(Boolean).join(" · ")),
+            h("button", {
+              type: "button",
+              style: { ...S.adminBtn, ...(rowBusy ? S.buttonBusy : {}) },
+              disabled: rowBusy,
+              onClick: () => onOp(disabled ? "enable" : "disable", skill.id),
+            }, disabled ? t("action.enable") : t("action.disable")),
+            h("button", {
+              type: "button",
+              style: { ...S.adminBtn, ...S.adminBtnDanger, ...(rowBusy ? S.buttonBusy : {}) },
+              disabled: rowBusy,
+              onClick: () => onOp("delete", skill.id),
+            }, t("action.deleteSkill")),
+          )
+        }),
+      )
+    }
+
+    /**
      * Main-panel cell: tabs, live search, and the card grid. Rendered only
      * while this panel is selected, so nothing polls once the user goes back
      * to the conversation.
@@ -512,6 +601,7 @@ window.__ModuleLoader__.load({
       const [truncated, setTruncated] = React.useState(false);
       const [fetching, setFetching] = React.useState(false);
       const [installedIds, setInstalledIds] = React.useState([]);
+      const [localSkills, setLocalSkills] = React.useState(null);
       const [busy, setBusy] = React.useState(null);
       const [error, setError] = React.useState("");
       const [note, setNote] = React.useState("");
@@ -652,7 +742,35 @@ window.__ModuleLoader__.load({
         return () => { alive = false; };
       }, [nonce, api]);
 
+      React.useEffect(() => {
+        if (tab !== "installed") return undefined
+        let alive = true
+        api.local()
+          .then((page) => { if (alive) setLocalSkills(page.skills ?? []) })
+          .catch(() => { if (alive) setLocalSkills([]) })
+        return () => { alive = false }
+      }, [tab, nonce, api])
+
       const installedSet = React.useMemo(() => new Set(installedIds), [installedIds]);
+
+      const runSkillOp = async (op, id) => {
+        setBusy(`skill:${id}`)
+        setError("")
+        setNote("")
+        try {
+          const result = op === "disable"
+            ? await api.toggleSkill(id, true)
+            : op === "enable"
+              ? await api.toggleSkill(id, false)
+              : await api.removeSkill(id)
+          setNote(result?.message || op)
+          setNonce((n) => n + 1)
+        } catch (e) {
+          setError(e.message)
+        } finally {
+          setBusy(null)
+        }
+      }
 
       const run = async (kind, id) => {
         setBusy(id);
@@ -712,7 +830,16 @@ window.__ModuleLoader__.load({
           entries === null
             ? h("div", { style: S.status }, t("state.loading"))
             : entries.length === 0
-              ? h("div", { style: S.status }, error ? t("state.unreachable") : t("state.empty"))
+              ? h("div", { style: S.column },
+                  h("div", { style: S.status }, error ? t("state.unreachable") : t("state.empty")),
+                  tab === "installed"
+                    ? h(LocalSkillsSection, {
+                        t,
+                        skills: localSkills,
+                        busy,
+                        onOp: (op, id) => runSkillOp(op, id),
+                      })
+                    : null)
               : h("div", { style: S.grid, ref: gridRef },
                 truncated || total > entries.length
                   ? h("div", { style: { ...S.status, gridColumn: "1 / -1" } }, `${entries.length} / ${total}`)
@@ -726,6 +853,14 @@ window.__ModuleLoader__.load({
                   onAction: (kind) => run(kind, entry.id),
                   onOpen: () => setSelected(entry),
                 })),
+                tab === "installed"
+                  ? h(LocalSkillsSection, {
+                      t,
+                      skills: localSkills,
+                      busy,
+                      onOp: (op, id) => runSkillOp(op, id),
+                    })
+                  : null,
                 tab !== "installed"
                   ? h("div", {
                       key: "sentinel",

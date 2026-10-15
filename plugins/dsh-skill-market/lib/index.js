@@ -23,6 +23,7 @@ import { createRequire } from 'node:module'
 import { homedir } from 'node:os'
 import { join } from 'node:path'
 import { pathToFileURL } from 'node:url'
+import { rm } from 'node:fs/promises'
 import Schema from '@deepseek-ai/schemastery'
 import { defineTool } from '@deepseek-ai/dsh-tools'
 import {
@@ -33,9 +34,13 @@ import {
   hasHooks,
   packageSkillFiles,
   parseCommandFile,
+  parseSkillFile,
   parseWorkbuddySkills,
   parseZcodeMarketplace,
   detailEntry,
+  attributionOf,
+  invocationOf,
+  setSkillInvocation,
   pluginHooksDocument,
   prefixSkillDescription,
   pluginMcpConfig,
@@ -326,22 +331,102 @@ function createMarket(ctx, settings, commandsRef) {
     },
 
     /**
-     * One entry's icon bytes, or undefined. ZCode icons are remote URLs from
-     * the marketplace document; WorkBuddy icons live at `icons/<id>.(svg|png)`
-     * inside the catalog zip. Results are cached per source/id, misses included.
+     * Every skill the default provider can see — installed by this plugin
+     * OR placed by hand. One row per bundle (`<dir>/SKILL.md`) or flat
+     * `<name>.md` under the scanned skill root, with its declared
+     * invocation policy and whether a market install owns it.
      */
-    async icon(source, id) {
-      const key = `${source}/${id}`
-      if (iconCache.has(key)) return iconCache.get(key)
-      const found = await loadIcon(source, id)
-      iconCache.set(key, found)
-      return found
+    async localSkills() {
+      const { readdir, readFile } = await import('node:fs/promises')
+      const records = await readInstalled(settings.stateDir)
+      const owned = new Map()
+      for (const record of Object.values(records)) {
+        for (const skill of record.skills ?? []) owned.set(skill, record.id)
+        owned.set(record.id, record.id)
+      }
+      const rows = []
+      let names = []
+      try {
+        names = await readdir(settings.skillsDir, { withFileTypes: true })
+      } catch {
+        return []
+      }
+      const readSkill = async (relative) => {
+        const text = textOf(await readFile(join(settings.skillsDir, relative), 'utf8'))
+        const parsed = parseSkillFile(text)
+        if (!parsed) return undefined
+        const policy = invocationOf(text)
+        return { text, parsed, policy }
+      }
+      for (const entry of names.sort((a, b) => a.name.localeCompare(b.name))) {
+        const relative = entry.isDirectory() ? join(entry.name, 'SKILL.md') : entry.name
+        if (!entry.isDirectory() && !entry.name.endsWith('.md')) continue
+        if (entry.name === '.system') continue
+        const found = await readSkill(relative).catch(() => undefined)
+        if (!found) continue
+        const attribution = attributionOf({ description: found.parsed.description })
+        rows.push({
+          id: entry.name,
+          name: found.parsed.name,
+          description: attribution.description,
+          package: attribution.package,
+          managed: owned.has(entry.name) ? owned.get(entry.name) : undefined,
+          modelInvocable: found.policy.modelInvocable,
+          userInvocable: found.policy.userInvocable,
+          file: relative.replace(/\\/g, '/'),
+        })
+      }
+      return rows
+    },
+
+    /**
+     * Flip one local skill's invocation policy by rewriting its frontmatter.
+     * Works the same for hand-placed skills and market installs.
+     */
+    async toggleSkill(id, disable) {
+      const { readFile, writeFile } = await import('node:fs/promises')
+      const relative = await this.skillFileOf(id)
+      const file = join(settings.skillsDir, relative)
+      const original = textOf(await readFile(file, 'utf8'))
+      const { markdown, changed } = setSkillInvocation(original, { disable })
+      if (!changed) return { message: `${id} already ${disable ? 'disabled' : 'enabled'}` }
+      await writeFile(file, markdown, 'utf8')
+      return { message: `${id} ${disable ? 'disabled' : 'enabled'}` }
+    },
+
+    /**
+     * Delete one local skill bundle (or flat file). A bundle owned by a
+     * market package is pruned from that package's record so a later
+     * package remove does not miss it.
+     */
+    async removeSkill(id) {
+      const relative = await this.skillFileOf(id)
+      await rm(join(settings.skillsDir, relative.endsWith('/SKILL.md') ? relative.replace('/SKILL.md', '') : relative), { recursive: true, force: true })
+      const records = await readInstalled(settings.stateDir)
+      for (const record of Object.values(records)) {
+        if (record.skills?.includes(id)) {
+          record.skills = record.skills.filter((skill) => skill !== id)
+        }
+      }
+      await writeInstalled(settings.stateDir, records)
+      return { message: `deleted skill ${id}` }
     },
 
     /** The catalog entry one id resolves to, detail form, for icon URLs. */
     async entryOf(source, id) {
       const catalog = await loadCatalog(settings, cache, requireSource(source))
       return catalog.find((item) => item.id === requireId(id))
+    },
+
+    /** Resolve one skill id to its file path (`<dir>/SKILL.md` or `<id>.md`). */
+    async skillFileOf(id) {
+      const { access } = await import('node:fs/promises')
+      const safe = requireId(id)
+      const bundle = join(settings.skillsDir, safe, 'SKILL.md')
+      if (await access(bundle).then(() => true, () => false)) return join(safe, 'SKILL.md')
+      const flat = join(settings.skillsDir, `${safe}.md`)
+      if (await access(flat).then(() => true, () => false)) return `${safe}.md`
+      throw new Error(`skill_market: no local skill "${safe}" under ${settings.skillsDir}`)
     },
   }
 
@@ -474,6 +559,48 @@ function registerMarketApi(webServer, market, settings) {
         if (!settings.stateDir) throw new Error('no state directory; set stateDir or DSH_HOME')
         const body = JSON.parse((await readBody(req)) || '{}')
         json(res, 200, { ok: true, ...(await market.remove({ id: body.id })) })
+      } catch (error) {
+        json(res, 400, { ok: false, error: error.message })
+      }
+    },
+  }))
+
+  disposers.push(webServer.register({
+    kind: 'exact',
+    path: `${API_BASE}/local`,
+    handler: async (_req, res) => {
+      try {
+        if (!settings.stateDir) throw new Error('no state directory; set stateDir or DSH_HOME')
+        const skills = await market.localSkills()
+        json(res, 200, { ok: true, skills, total: skills.length })
+      } catch (error) {
+        json(res, 400, { ok: false, error: error.message })
+      }
+    },
+  }))
+
+  disposers.push(webServer.register({
+    kind: 'exact',
+    path: `${API_BASE}/skill/toggle`,
+    handler: async (req, res) => {
+      try {
+        if (!settings.stateDir) throw new Error('no state directory; set stateDir or DSH_HOME')
+        const body = JSON.parse((await readBody(req)) || '{}')
+        json(res, 200, { ok: true, ...(await market.toggleSkill(body.id, body.disable === true)) })
+      } catch (error) {
+        json(res, 400, { ok: false, error: error.message })
+      }
+    },
+  }))
+
+  disposers.push(webServer.register({
+    kind: 'exact',
+    path: `${API_BASE}/skill/remove`,
+    handler: async (req, res) => {
+      try {
+        if (!settings.stateDir) throw new Error('no state directory; set stateDir or DSH_HOME')
+        const body = JSON.parse((await readBody(req)) || '{}')
+        json(res, 200, { ok: true, ...(await market.removeSkill(body.id)) })
       } catch (error) {
         json(res, 400, { ok: false, error: error.message })
       }
