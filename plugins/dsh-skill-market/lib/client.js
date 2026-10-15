@@ -184,9 +184,15 @@ window.__ModuleLoader__.load({
 
     const S = {
       panel: {
-        height: "100%", overflowY: "auto", boxSizing: "border-box", padding: "28px 20px 40px",
+        height: "100%", boxSizing: "border-box", padding: "24px 20px 0",
         background: "var(--dsw-alias-bg-base)", color: "var(--dsw-alias-label-primary)", font: "inherit",
-        display: "flex", flexDirection: "column", alignItems: "center",
+        display: "flex", flexDirection: "column",
+      },
+      // Header (title, tabs, search) stays pinned; only the card area
+      // scrolls, so switching catalogs never requires scrolling back up.
+      scrollArea: {
+        flex: 1, minHeight: 0, overflowY: "auto", boxSizing: "border-box",
+        padding: "0 0 40px", marginTop: 4,
       },
       column: { width: "100%", display: "flex", flexDirection: "column", gap: 14 },
       title: { margin: 0, fontSize: 15, fontWeight: 600 },
@@ -526,6 +532,7 @@ window.__ModuleLoader__.load({
       // where they left off instead of being thrown back to the head.
       const gridRef = React.useRef(null);
       const panelRef = React.useRef(null);
+      const scrollRef = React.useRef(null);
       const sentinelRef = React.useRef(null);
       const fetchingRef = React.useRef(false);
       // Auto-load cooldown: scroll events arrive in bursts; one fire per
@@ -551,7 +558,7 @@ window.__ModuleLoader__.load({
         if (tab === "installed") return undefined
         const check = () => {
           const sentinel = sentinelRef.current
-          const root = panelRef.current
+          const root = scrollRef.current || panelRef.current
           if (!sentinel || !root) return
           if (fetchingRef.current) return
           if (entries !== null && entries.length >= total) return
@@ -563,7 +570,7 @@ window.__ModuleLoader__.load({
             grow()
           }
         }
-        const root = panelRef.current
+        const root = scrollRef.current || panelRef.current
         if (!root) return undefined
         root.addEventListener("scroll", check, { passive: true })
         window.addEventListener("resize", check)
@@ -699,6 +706,9 @@ window.__ModuleLoader__.load({
             : null,
           error ? h("div", { style: S.error }, `${t("state.error")}: ${error}`) : null,
           note ? h("div", { style: S.status }, note) : null,
+        ),
+        h("div", { style: S.scrollArea, ref: scrollRef },
+          h("div", { style: S.column },
           entries === null
             ? h("div", { style: S.status }, t("state.loading"))
             : entries.length === 0
@@ -731,6 +741,7 @@ window.__ModuleLoader__.load({
                         : `${entries.length} / ${total}`)
                   : null,
               ),
+        ),
         ),
         selected
           ? h(DetailModal, {
